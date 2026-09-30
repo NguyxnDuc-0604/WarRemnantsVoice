@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  # Database lưu trữ thông tin hiện vật & bản dịch
+  postgres:
+    image: postgres:16-alpine
+    container_name: museum_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: museum_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # Message Queue điều phối pipeline xử lý audio
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: museum_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672" # Cổng kết nối code (AMQP)
+      - "15672:15672" # Giao diện web quản lý RabbitMQ
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  # Object Storage lưu trữ file âm thanh các thứ tiếng
+  minio:
+    image: minio/minio:latest
+    container_name: museum_minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword
+    ports:
+      - "9000:9000" # S3 API endpoint
+      - "9001:9001" # Giao diện Web MinIO Console
+    volumes:
+      - minio-data:/data
+
+volumes:
+  postgres-data:
+  minio-data:
