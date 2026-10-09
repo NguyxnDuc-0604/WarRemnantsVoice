@@ -38,3 +38,4 @@ docker-data/
 minio-data/
 postgres-data/
 *.log
+*.mp3
