@@ -1,5 +1,6 @@
 # Sơ đồ thực thể ERD
 
+```mermaid
 erDiagram
 SESSIONS ||--o{ TOUR_ROUTES : "manages"
 TOUR_ROUTES ||--o{ TOUR_EXHIBITS : "composed of"
@@ -96,3 +97,4 @@ EXHIBITS ||--o{ LISTENING_METRICS : "tracks"
         string target_lang
         string context_note
     }
+```
