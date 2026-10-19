@@ -38,5 +38,4 @@ docker-data/
 minio-data/
 postgres-data/
 *.log
-services/ai-pipeline-service/venv/
-services/ai-pipeline-service/output/
+*.mp3
