@@ -1,11 +1,64 @@
 const API_BASE = '/api/v1'
 
 /**
- * Gọi AI Pipeline: Dịch văn bản + Sinh audio
- * @param {string} text - Văn bản tiếng Việt gốc
- * @param {string[]} languages - Danh sách mã ngôn ngữ đích (vd: ['en', 'fr'])
- * @param {string} exhibitId - ID hiện vật (dùng để đặt tên file audio)
- * @returns {Promise<object>} - Kết quả dịch và đường dẫn audio
+ * Lấy danh sách tất cả hiện vật mẫu từ backend
+ */
+export async function fetchExhibits() {
+  const response = await fetch(`${API_BASE}/exhibits`)
+  if (!response.ok) {
+    throw new Error(`Không thể lấy danh sách hiện vật: ${response.status}`)
+  }
+  return response.json()
+}
+
+/**
+ * Lấy chi tiết một hiện vật theo mã code (UH1-BELL, T54-390, EX-01...)
+ */
+export async function fetchExhibitByCode(identifier) {
+  const response = await fetch(`${API_BASE}/exhibits/${encodeURIComponent(identifier)}`)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Không tìm thấy hiện vật '${identifier}'`)
+  }
+  return response.json()
+}
+
+/**
+ * Lấy bản dịch, file audio MP3 và mốc thời gian phụ đề JSON cho một hiện vật
+ * @param {string} identifier - Mã hiện vật (UH1-BELL, EX-01...)
+ * @param {string} lang - Mã ngôn ngữ (en, fr, ja, ko...)
+ */
+export async function fetchExhibitAudio(identifier, lang = 'en') {
+  const response = await fetch(`${API_BASE}/exhibits/${encodeURIComponent(identifier)}/audio?lang=${encodeURIComponent(lang)}`)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Lỗi tải âm thanh thuyết minh (${response.status})`)
+  }
+  return response.json()
+}
+
+/**
+ * Báo cáo thống kê lượt nghe ẩn danh (FR-20, BR-15)
+ */
+export async function reportListeningMetric(exhibitCode, langCode, duration, triggerType = 'QR_CODE') {
+  try {
+    await fetch(`${API_BASE}/metrics/listen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        exhibit_code: exhibitCode,
+        language_code: langCode,
+        listened_duration: Math.round(duration),
+        trigger_type: triggerType
+      })
+    })
+  } catch (e) {
+    console.warn('Không thể ghi nhận metric:', e)
+  }
+}
+
+/**
+ * Gọi AI Pipeline tự do: Dịch văn bản + Sinh audio
  */
 export async function processAudio(text, languages, exhibitId = null) {
   const timestamp = Date.now()
@@ -31,27 +84,9 @@ export async function processAudio(text, languages, exhibitId = null) {
 }
 
 /**
- * Lấy danh sách tất cả hiện vật mẫu từ backend
+ * Alias cho fetchExhibitByCode
  */
-export async function fetchExhibits() {
-  const response = await fetch(`${API_BASE}/exhibits`)
-  if (!response.ok) {
-    throw new Error(`Không thể lấy danh sách hiện vật: ${response.status}`)
-  }
-  return response.json()
-}
-
-/**
- * Lấy chi tiết một hiện vật theo ID (EX-01, EX-02...)
- */
-export async function fetchExhibitById(exhibitId) {
-  const response = await fetch(`${API_BASE}/exhibits/${encodeURIComponent(exhibitId)}`)
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || `Không tìm thấy hiện vật ${exhibitId}`)
-  }
-  return response.json()
-}
+export const fetchExhibitById = fetchExhibitByCode
 
 /**
  * Kiểm tra backend có hoạt động không

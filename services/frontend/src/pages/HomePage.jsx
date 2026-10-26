@@ -1,60 +1,63 @@
 import { Link } from 'react-router-dom'
-import { Headphones, Globe, Mic, Zap, ChevronRight, Shield, Volume2, QrCode, Smartphone } from 'lucide-react'
+import { Headphones, Globe, Mic, Zap, ChevronRight, Shield, Volume2, QrCode, Smartphone, Sparkles } from 'lucide-react'
 import './HomePage.css'
 
 const FEATURES = [
   {
     icon: <QrCode size={22} />,
-    title: 'Quét Mã QR Hiện Vật',
-    desc: 'Quét mã QR tại bảo tàng bằng camera điện thoại để nghe ngay bài thuyết minh tương ứng.',
+    title: 'Quét Mã QR Bằng Camera Điện Thoại',
+    desc: 'Không cần cài đặt ứng dụng hay đăng nhập. Khách chỉ cần mở Camera thường hoặc Zalo trên điện thoại quét mã QR để nghe thuyết minh tức thì (≤1.5s).',
   },
   {
     icon: <Globe size={22} />,
-    title: '13+ Ngôn Ngữ',
-    desc: 'Dịch thuật tự động sang Anh, Pháp, Nhật, Hàn, Trung, Đức, Tây Ban Nha và nhiều ngôn ngữ khác.',
+    title: '15+ Ngôn Ngữ Tự Động',
+    desc: 'Dịch thuật tự động sang Anh, Pháp, Nhật, Hàn, Trung, Đức, Tây Ban Nha, Nga... và ghi nhớ ngôn ngữ suốt buổi tham quan.',
   },
   {
     icon: <Volume2 size={22} />,
-    title: 'Giọng Đọc Neural AI',
-    desc: 'Microsoft Edge TTS Neural — giọng đọc tự nhiên như người thật, chuẩn ngữ điệu từng quốc gia.',
+    title: 'Giọng Đọc Neural AI & Phụ Đề Đồng Bộ',
+    desc: 'Microsoft Edge TTS Neural với giọng đọc truyền cảm, trang nghiêm. Phụ đề tự động cuộn chữ và sáng theo từng câu đang đọc (FR-16).',
   },
   {
     icon: <Smartphone size={22} />,
-    title: 'Đa Thiết Bị Không Cần Cài Đặt',
-    desc: 'Truy cập trực tiếp từ trình duyệt smartphone qua mạng nội bộ hoặc đường dẫn internet an toàn.',
+    title: 'Đa Thiết Bị Truy Cập Đồng Thời',
+    desc: 'Hàng chục, hàng trăm khách tham quan dùng 4G/5G hoặc mạng khác nhau có thể cùng quét mã QR và nghe độc lập không bị nghẽn.',
   },
   {
     icon: <Shield size={22} />,
-    title: 'Từ Điển Lịch Sử (Glossary)',
-    desc: 'Bảo toàn và chuẩn hoá các thuật ngữ lịch sử (Chiến dịch Hồ Chí Minh, Chuồng Cọp, Ấp Bắc...).',
+    title: 'Từ Điển Thuật Ngữ Lịch Sử (Glossary)',
+    desc: 'Kiểm soát nghiêm ngặt các thuật ngữ quân sự, chiến dịch (Ấp Bắc, Chiến dịch Hồ Chí Minh, Chuồng Cọp...) đạt độ chính xác ≥95%.',
   },
   {
     icon: <Zap size={22} />,
-    title: 'Xử Lý Nhanh Chóng',
-    desc: 'Pipeline AI thời gian thực: nhận diện mã QR → dịch thuật ngữ cảnh → phát audio chỉ trong vài giây.',
+    title: 'Phát Âm Thanh Phân Đoạn (Streaming)',
+    desc: 'Tối ưu hoá luồng phát âm thanh HTTP Range Requests giúp âm thanh vang lên trong ≤2 giây kể cả khi sóng di động 3G/4G yếu.',
   },
 ]
 
 const SAMPLE_EXHIBITS = [
   {
     id: 'EX-01',
+    code: 'UH1-BELL',
     name: 'Máy bay UH-1 "Huey"',
     zone: 'Khu trưng bày ngoài trời',
-    text: 'Trực thăng UH-1 Iroquois được sử dụng rộng rãi trong Chiến tranh Việt Nam bởi quân đội Hoa Kỳ từ năm 1962 đến 1975.',
+    text: 'Trực thăng UH-1 Iroquois được quân đội Hoa Kỳ sử dụng rộng rãi trong Chiến tranh Việt Nam từ năm 1962 đến 1975.',
     langs: ['🇬🇧', '🇫🇷', '🇯🇵', '🇨🇳'],
   },
   {
     id: 'EX-02',
-    name: 'Xe tăng M48 Patton',
-    zone: 'Sân trưng bày vũ khí',
-    text: 'Xe tăng M48 Patton là loại xe tăng chiến đấu chủ lực được Mỹ sử dụng trong giai đoạn 1967–1972.',
+    code: 'T54-390',
+    name: 'Xe tăng T-54B số hiệu 390',
+    zone: 'Sân trưng bày cơ giới ngoài trời',
+    text: 'Xe tăng húc đổ cổng chính Dinh Độc Lập lúc 10h45 ngày 30/4/1975, mốc son thống nhất đất nước.',
     langs: ['🇬🇧', '🇰🇷', '🇩🇪', '🇧🇷'],
   },
   {
     id: 'EX-03',
-    name: 'Chiến dịch Hồ Chí Minh',
-    zone: 'Phòng lịch sử tổng thể',
-    text: 'Chiến dịch Hồ Chí Minh diễn ra từ ngày 26 tháng 4 đến 30 tháng 4 năm 1975, kết thúc cuộc kháng chiến.',
+    code: 'CONDAO-CAGE',
+    name: 'Mô hình Chuồng cọp Côn Đảo',
+    zone: 'Khu chứng tích tội ác chiến tranh',
+    text: 'Tái hiện chế độ giam giữ khắc nghiệt đối với các chiến sĩ cách mạng, biểu tượng của ý chí bất khuất.',
     langs: ['🇬🇧', '🇫🇷', '🇷🇺', '🇸🇦'],
   },
 ]
@@ -70,58 +73,54 @@ export default function HomePage() {
 
         <div className="container hero__content">
           <div className="hero__badge badge badge-amber animate-fade-in-up">
-            <Mic size={11} />
-            AI-Powered Museum Audio Guide · QR Scanner
+            <Sparkles size={11} />
+            Hệ thống Thuyết minh Tự động Đa ngôn ngữ (WarRemnantsVoice)
           </div>
 
           <h1 className="hero__title animate-fade-in-up animate-fade-in-up-delay-1">
-            Thuyết Minh Bảo Tàng
+            Bảo Tàng Chứng Tích Chiến Tranh
             <br />
-            <span className="gradient-text">Quét Mã QR & Đa Ngôn Ngữ</span>
+            <span className="gradient-text">Quét Mã QR Nghe Thuyết Minh</span>
           </h1>
 
           <p className="hero__desc animate-fade-in-up animate-fade-in-up-delay-2">
-            Hệ thống AI tự động dịch nội dung thuyết minh hiện vật sang <strong>13+ ngôn ngữ</strong> và
-            tổng hợp giọng đọc tự nhiên. Dễ dàng truy cập từ điện thoại di động mọi lúc mọi nơi.
+            Khách tham quan chỉ cần dùng <strong>Camera điện thoại</strong> hoặc <strong>Zalo</strong> quét mã QR tại hiện vật để nghe bài thuyết minh và xem phụ đề đồng bộ bằng <strong>15+ ngôn ngữ</strong>.
+            Không cần tải app · Không cần đăng ký tài khoản.
           </p>
 
           <div className="hero__actions animate-fade-in-up animate-fade-in-up-delay-3">
-            <Link to="/qr-scan" className="btn btn-primary btn-lg">
+            <Link to="/qr-stands" className="btn btn-primary btn-lg">
               <QrCode size={18} />
-              Quét Mã QR Hiện Vật
+              Xem Biển Mã QR Hiện Vật
               <ChevronRight size={16} />
             </Link>
 
-            <Link to="/translate" className="btn btn-secondary btn-lg">
+            <Link to="/exhibit/UH1-BELL" className="btn btn-secondary btn-lg">
               <Headphones size={18} />
-              Tự Nhập Thuyết Minh
-            </Link>
-
-            <Link to="/qr-codes" className="btn btn-ghost btn-lg">
-              Xem Mã QR Mẫu
+              Trải Nghiệm Thuyết Minh Mẫu (EX-01)
             </Link>
           </div>
 
-          {/* Stats */}
+          {/* Stats Bar */}
           <div className="hero__stats animate-fade-in-up" style={{ animationDelay: '0.4s', opacity: 0 }}>
             <div className="hero__stat">
-              <span className="hero__stat-value gradient-text">13+</span>
-              <span className="hero__stat-label">Ngôn ngữ</span>
+              <span className="hero__stat-value gradient-text">Camera QR</span>
+              <span className="hero__stat-label">Không cần tải app</span>
             </div>
             <div className="hero__stat-divider" />
             <div className="hero__stat">
-              <span className="hero__stat-value gradient-text">QR Scan</span>
-              <span className="hero__stat-label">Camera tức thì</span>
+              <span className="hero__stat-value gradient-text">15+</span>
+              <span className="hero__stat-label">Ngôn ngữ quốc tế</span>
+            </div>
+            <div className="hero__stat-divider" />
+            <div className="hero__stat">
+              <span className="hero__stat-value gradient-text">≤1.5s</span>
+              <span className="hero__stat-label">Thời gian mở trang</span>
             </div>
             <div className="hero__stat-divider" />
             <div className="hero__stat">
               <span className="hero__stat-value gradient-text">Neural</span>
-              <span className="hero__stat-label">Giọng đọc AI</span>
-            </div>
-            <div className="hero__stat-divider" />
-            <div className="hero__stat">
-              <span className="hero__stat-value gradient-text">Mobile</span>
-              <span className="hero__stat-label">Đa thiết bị</span>
+              <span className="hero__stat-label">Giọng đọc AI & Phụ đề</span>
             </div>
           </div>
         </div>
@@ -131,9 +130,9 @@ export default function HomePage() {
       <section className="section">
         <div className="container">
           <div className="section-header">
-            <h2 className="text-3xl font-bold">Tính Năng Nổi Bật</h2>
+            <h2 className="text-3xl font-bold">Quy Trình Nghiệp Vụ Theo Chuẩn PRD</h2>
             <p className="text-sm" style={{ color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
-              Giải pháp Audio Guide hiện đại cho Bảo tàng Chứng tích Chiến tranh
+              Thiết kế chuyên biệt cho du khách quốc tế và công tác quản lý của Bảo tàng Chứng tích Chiến tranh
             </p>
           </div>
           <div className="features-grid">
@@ -158,14 +157,14 @@ export default function HomePage() {
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
           <div className="section-header">
-            <h2 className="text-3xl font-bold">Hiện Vật Mẫu Nổi Bật</h2>
+            <h2 className="text-3xl font-bold">Danh Mục Hiện Vật Trưng Bày Tiêu Biểu</h2>
             <p className="text-sm" style={{ color: 'var(--color-text-secondary)', marginTop: '0.5rem' }}>
-              Bấm vào hiện vật để mở màn hình quét hoặc nghe thuyết minh ngay
+              Bấm vào hiện vật để mở trực tiếp giao diện nghe thuyết minh của du khách
             </p>
           </div>
           <div className="exhibits-grid">
             {SAMPLE_EXHIBITS.map((exhibit) => (
-              <div key={exhibit.id} className="exhibit-card glass-card">
+              <div key={exhibit.code} className="exhibit-card glass-card">
                 <div className="exhibit-card__header">
                   <span className="badge badge-amber">{exhibit.id}</span>
                   <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>{exhibit.zone}</span>
@@ -181,7 +180,7 @@ export default function HomePage() {
                     <span key={j} className="exhibit-card__lang-flag">{flag}</span>
                   ))}
                   <Link
-                    to={`/qr-scan?id=${encodeURIComponent(exhibit.id)}`}
+                    to={`/exhibit/${exhibit.code}`}
                     className="btn btn-sm btn-primary"
                     style={{ marginLeft: 'auto' }}
                   >
@@ -197,20 +196,17 @@ export default function HomePage() {
       {/* ── CTA ────────────────────────────────── */}
       <section className="cta-section">
         <div className="container cta-section__inner">
-          <QrCode size={40} style={{ color: 'var(--color-amber-400)', marginBottom: '1rem' }} />
+          <QrCode size={42} style={{ color: 'var(--color-amber-400)', marginBottom: '1rem' }} />
           <h2 className="text-2xl font-bold" style={{ marginBottom: '0.5rem' }}>
-            Sẵn sàng khám phá bảo tàng?
+            Kiểm Thử Trực Tiếp Trên Điện Thoại
           </h2>
-          <p className="text-sm" style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem' }}>
-            Bật camera điện thoại, quét mã QR trên hiện vật và chọn ngôn ngữ bạn muốn lắng nghe.
+          <p className="text-sm" style={{ color: 'var(--color-text-secondary)', marginBottom: '1.5rem', maxWidth: '520px' }}>
+            Mở <strong>Biển Mã QR Hiện Vật</strong> trên màn hình máy tính, sau đó cầm bất kỳ điện thoại nào (dùng 4G/5G hoặc WiFi) bật Camera hoặc Zalo lên quét là nghe được ngay!
           </p>
           <div className="flex gap-3 flex-wrap justify-center">
-            <Link to="/qr-scan" className="btn btn-primary btn-lg">
+            <Link to="/qr-stands" className="btn btn-primary btn-lg">
               <QrCode size={18} />
-              Mở Trình Quét QR
-            </Link>
-            <Link to="/qr-codes" className="btn btn-secondary btn-lg">
-              Xem Thư Viện Mã QR
+              Mở Danh Sách Biển Mã QR
             </Link>
           </div>
         </div>

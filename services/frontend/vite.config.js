@@ -4,8 +4,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: '0.0.0.0',    // Lắng nghe trên tất cả interface → điện thoại cùng WiFi truy cập được
+    host: '0.0.0.0', // Lắng nghe trên tất cả interface (Mobile, LAN, Tunnel)
     port: 5173,
+    allowedHosts: true, // Cho phép tất cả tunnel host (Cloudflare Tunnel, Ngrok, 4G/5G) truy cập không bị chặn
     proxy: {
       // Proxy tất cả request /api → FastAPI backend
       '/api': {
