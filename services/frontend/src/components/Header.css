@@ -89,6 +89,13 @@
   color: var(--color-amber-400);
 }
 
+/* Ẩn nút Quản trị trên màn hình điện thoại di động để khách không thấy */
+@media (max-width: 768px) {
+  .admin-desktop-only {
+    display: none !important;
+  }
+}
+
 /* Status */
 .header__status {
   display: flex;

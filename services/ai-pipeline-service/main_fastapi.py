@@ -1,21 +1,53 @@
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+from contextlib import asynccontextmanager
 import os
 import re
+import json
 import time
+import uuid
 import asyncio
 from datetime import datetime
+from sqlalchemy.orm import Session
 
+from app.db.database import engine, Base, SessionLocal, get_db
+from app.db.models import (
+    Exhibit,
+    ContentSource,
+    Localization,
+    AudioMedia,
+    TourRoute,
+    Glossary,
+    ListeningMetric,
+    SupportedLanguage
+)
+from app.db.seed import seed_database
 from app.services.translate_service import translate_text
 from app.services.tts_service import generate_audio
+from app.db.utility import list_table_names, fetch_table_rows
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Khởi tạo bảng CSDL và nạp dữ liệu mẫu theo PRD nếu chưa có
+    try:
+        Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
+        try:
+            seed_database(db)
+        finally:
+            db.close()
+    except Exception as err:
+        print(f"[DB-INIT-WARN] Loi khoi tao CSDL: {err}")
+    yield
 
 app = FastAPI(
-    title="WarRemnantsVoice - AI Pipeline & Exhibit Service",
+    title="WarRemnantsVoice - AI Pipeline, Exhibit & Admin Service",
     description="Hệ thống thuyết minh tự động đa ngôn ngữ cho Bảo tàng Chứng tích Chiến tranh",
-    version="2.2.0"
+    version="2.4.0",
+    lifespan=lifespan
 )
 
 # CORS Middleware mở cho mọi Client (Mobile Web, PWA, Remote Tunnel)
@@ -31,125 +63,22 @@ app.add_middleware(
 os.makedirs("./output", exist_ok=True)
 app.mount("/output", StaticFiles(directory="./output"), name="output")
 
-# Cơ sở dữ liệu danh mục hiện vật mẫu chuẩn theo PRD
-EXHIBITS_DATABASE = [
-    {
-        "id": "ex-01-uuid",
-        "code": "UH1-BELL",
-        "display_code": "EX-01",
-        "title": "Máy bay trực thăng UH-1 Iroquois 'Huey'",
-        "title_en": "UH-1 Iroquois 'Huey' Helicopter",
-        "room_id": "OUTDOOR",
-        "zone": "Khu trưng bày ngoài trời",
-        "latitude": 10.7794,
-        "longitude": 106.6922,
-        "radius": 15,
-        "thumbnail_url": "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80",
-        "period": "1962 - 1975",
-        "original_text": "Trực thăng UH-1 Iroquois, thường được gọi là 'Huey', là biểu tượng không quân của quân đội Mỹ trong Chiến tranh Việt Nam. Được sử dụng từ năm 1962 đến 1975 với các nhiệm vụ đổ quân chiến thuật, cứu thương và yểm trợ hoả lực. Chiếc máy bay trưng bày tại đây là một trong những chứng tích ghi lại các cuộc càn quét khốc liệt trên chiến trường miền Nam.",
-        "content_version": 1,
-        "is_published": True,
-        "next_code": "T54-390"
-    },
-    {
-        "id": "ex-02-uuid",
-        "code": "T54-390",
-        "display_code": "EX-02",
-        "title": "Xe tăng T-54B số hiệu 390",
-        "title_en": "T-54B Tank No. 390",
-        "room_id": "OUTDOOR",
-        "zone": "Sân trưng bày cơ giới ngoài trời",
-        "latitude": 10.7796,
-        "longitude": 106.6925,
-        "radius": 15,
-        "thumbnail_url": "https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&q=80",
-        "period": "1975",
-        "original_text": "Xe tăng T-54B số hiệu 390 thuộc Đại đội 4, Tiểu đoàn 1, Lữ đoàn Tăng - Thiết giáp 203. Vào lúc 10 giờ 45 phút ngày 30 tháng 4 năm 1975, chiếc xe tăng này đã húc đổ cổng chính Dinh Độc Lập, đánh dấu thời khắc giải phóng hoàn toàn miền Nam, thống nhất non sông.",
-        "content_version": 1,
-        "is_published": True,
-        "next_code": "M107-175"
-    },
-    {
-        "id": "ex-03-uuid",
-        "code": "M107-175",
-        "display_code": "EX-03",
-        "title": "Pháo tự hành M107 175mm 'Vua chiến trường'",
-        "title_en": "M107 175mm Self-Propelled Gun",
-        "room_id": "OUTDOOR",
-        "zone": "Khu trưng bày pháo binh ngoài trời",
-        "latitude": 10.7792,
-        "longitude": 106.6928,
-        "radius": 15,
-        "thumbnail_url": "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80",
-        "period": "1968 - 1975",
-        "original_text": "Pháo tự hành hạng nặng M107 cỡ nòng 175mm từng được mệnh danh là 'Vua chiến trường' của quân đội Mỹ với tầm bắn tối đa lên tới hơn 32 km. Khẩu pháo này từng tham gia nhiều chiến dịch ác liệt tại Quảng Trị, Đường 9 Nam Lào và Đông Nam Bộ.",
-        "content_version": 1,
-        "is_published": True,
-        "next_code": "CONDAO-CAGE"
-    },
-    {
-        "id": "ex-04-uuid",
-        "code": "CONDAO-CAGE",
-        "display_code": "EX-04",
-        "title": "Mô hình phục dựng Chuồng cọp Côn Đảo",
-        "title_en": "Con Dao Tiger Cages Replica",
-        "room_id": "ROOM-02",
-        "zone": "Khu chứng tích tội ác chiến tranh",
-        "latitude": None,
-        "longitude": None,
-        "radius": 10,
-        "thumbnail_url": "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=800&q=80",
-        "period": "1940 - 1975",
-        "original_text": "Chuồng cọp Côn Đảo là hệ thống giam giữ bí mật đặc biệt khắc nghiệt do chính quyền thực dân và tay sai xây dựng nhằm đày ải, tra tấn tinh thần và thể xác các chiến sĩ yêu nước. Không gian ngột ngạt, xiềng xích và vôi bột rải từ trên cao thể hiện tội ác tột cùng nhưng cũng là biểu tượng sáng ngời của ý chí bất khuất.",
-        "content_version": 1,
-        "is_published": True,
-        "next_code": "HOCHIMINH-CAMPAIGN"
-    },
-    {
-        "id": "ex-05-uuid",
-        "code": "HOCHIMINH-CAMPAIGN",
-        "display_code": "EX-05",
-        "title": "Sa bàn Chiến dịch Hồ Chí Minh lịch sử",
-        "title_en": "Historical Ho Chi Minh Campaign Diorama",
-        "room_id": "ROOM-03",
-        "zone": "Phòng trưng bày lịch sử tổng hợp",
-        "latitude": None,
-        "longitude": None,
-        "radius": 10,
-        "thumbnail_url": "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80",
-        "period": "Tháng 4/1975",
-        "original_text": "Chiến dịch Hồ Chí Minh diễn ra từ ngày 26 đến 30 tháng 4 năm 1975 là chiến dịch quyết chiến chiến lược lớn nhất trong lịch sử dân tộc. Bằng 5 cánh quân tiến công thần tốc, quân và dân ta đã đập tan bộ máy chiến tranh đầu não, giải phóng Sài Gòn và non sông thu về một mối.",
-        "content_version": 1,
-        "is_published": True,
-        "next_code": "UH1-BELL"
-    }
-]
-
-# Lưu trữ cache các bản dịch & audio đã sinh (BR-05)
 TRANSLATION_CACHE: Dict[str, Any] = {}
 
-# Lưu trữ số liệu thống kê lượt nghe ẩn danh (FR-20, BR-15)
-LISTENING_METRICS: List[Dict[str, Any]] = []
-
 # ====================================================================
-# 🟢 REAL-TIME VISITOR TRACKING & OBSERVABILITY (PRD UC5, FR-21, FR-22)
+# 🟢 REAL-TIME VISITOR TRACKING & ACTIVE SESSIONS
 # ====================================================================
-# Lưu trữ các phiên người dùng đang hoạt động trong thời gian thực
 ACTIVE_SESSIONS: Dict[str, Dict[str, Any]] = {}
-
-# Nhật ký sự kiện truy cập thời gian thực (Live Stream)
 VISITOR_LOGS: List[Dict[str, Any]] = []
-
 TOTAL_VISITORS_COUNTER = 0
 
 def clean_expired_sessions(timeout_seconds: int = 25):
-    """Xóa các session không gửi heartbeat trong 25 giây (coi như đã rời khỏi trang)"""
+    """Loại bỏ các session không gửi heartbeat trong 25 giây (đã thoát trang)"""
     now = time.time()
-    expired = [sid for sid, data in ACTIVE_SESSIONS.items() if now - data.get("last_ping", 0) > timeout_seconds]
+    expired = [sid for sid, data in list(ACTIVE_SESSIONS.items()) if now - data.get("last_ping", 0) > timeout_seconds]
     for sid in expired:
         del ACTIVE_SESSIONS[sid]
 
-# Hàm chia câu và ước tính mốc thời gian phụ đề JSON (FR-16)
 def generate_subtitle_timestamps(text: str, total_duration: float = None):
     raw_sentences = re.split(r'(?<=[.!?。！？])\s+', text.strip())
     sentences = [s.strip() for s in raw_sentences if s.strip()]
@@ -179,7 +108,30 @@ def generate_subtitle_timestamps(text: str, total_duration: float = None):
 
     return timestamps
 
-# Models
+def format_exhibit_response(exhibit: Exhibit, db: Session, idx: int = 1) -> dict:
+    """Format đối tượng Exhibit ORM thành dictionary đầy đủ cho Frontend"""
+    content_src = db.query(ContentSource).filter_by(exhibit_id=exhibit.id).first()
+    original_text = content_src.original_text if content_src else ""
+    return {
+        "id": exhibit.id,
+        "code": exhibit.code,
+        "display_code": f"EX-{idx:02d}",
+        "title": exhibit.title,
+        "title_en": exhibit.title_en or exhibit.title,
+        "room_id": exhibit.room_id,
+        "zone": exhibit.zone,
+        "period": exhibit.period or "",
+        "latitude": exhibit.latitude,
+        "longitude": exhibit.longitude,
+        "radius": exhibit.radius,
+        "thumbnail_url": exhibit.thumbnail_url,
+        "original_text": original_text,
+        "content_version": exhibit.content_version,
+        "is_published": exhibit.is_published,
+        "created_at": exhibit.created_at.isoformat() if exhibit.created_at else None
+    }
+
+# Request Models
 class TranslationRequest(BaseModel):
     task_id: str
     exhibit_id: str
@@ -197,27 +149,36 @@ class HeartbeatRequest(BaseModel):
     exhibit_code: Optional[str] = "HOME"
     language_code: Optional[str] = "en"
     is_playing: bool = False
-    device_type: Optional[str] = "Mobile" # "Mobile" hoặc "Desktop"
+    device_type: Optional[str] = "Mobile"
+
+class CreateExhibitRequest(BaseModel):
+    code: str
+    title: str
+    title_en: Optional[str] = ""
+    zone: Optional[str] = "Khu trưng bày"
+    room_id: Optional[str] = "ROOM-01"
+    period: Optional[str] = ""
+    thumbnail_url: Optional[str] = ""
+    original_text: str
 
 @app.get("/")
-def health_check():
+def health_check(db: Session = Depends(get_db)):
     clean_expired_sessions()
+    exhibits_count = db.query(Exhibit).filter(Exhibit.is_active == True).count()
     return {
         "status": "ok",
         "service": "WarRemnantsVoice Exhibit & AI Service",
-        "version": "2.2.0",
+        "version": "2.4.0",
+        "database": "CONNECTED",
         "active_visitors_online": len(ACTIVE_SESSIONS),
-        "exhibits_count": len(EXHIBITS_DATABASE)
+        "exhibits_count": exhibits_count
     }
 
 # ====================================================================
-# 👥 VISITOR HEARTBEAT & REAL-TIME TRACKING
+# 👥 VISITOR HEARTBEAT
 # ====================================================================
 @app.post("/api/v1/metrics/heartbeat")
 def receive_heartbeat(payload: HeartbeatRequest, request: Request):
-    """
-    Tiếp nhận ping từ thiết bị du khách mỗi 5-10 giây để đếm người đang online thời gian thực
-    """
     global TOTAL_VISITORS_COUNTER
     now = time.time()
     vid = payload.visitor_id
@@ -225,24 +186,20 @@ def receive_heartbeat(payload: HeartbeatRequest, request: Request):
     is_new = vid not in ACTIVE_SESSIONS
     if is_new:
         TOTAL_VISITORS_COUNTER += 1
-        
-        # Ghi nhận vào nhật ký truy cập trực tiếp
         client_host = request.client.host if request.client else "unknown"
         VISITOR_LOGS.insert(0, {
             "id": f"log-{int(now * 1000)}",
-            "visitor_id": vid[:8] + "...",
+            "visitor_id": vid[:8],
             "exhibit_code": payload.exhibit_code,
             "language": payload.language_code,
             "device": payload.device_type,
-            "action": "Vào xem hiện vật",
+            "action": "Kết nối tham quan",
             "time": datetime.now().strftime("%H:%M:%S"),
             "ip": client_host
         })
-        # Giữ tối đa 50 log gần nhất
         if len(VISITOR_LOGS) > 50:
             VISITOR_LOGS.pop()
 
-    # Cập nhật thông tin session
     ACTIVE_SESSIONS[vid] = {
         "visitor_id": vid,
         "exhibit_code": payload.exhibit_code,
@@ -260,52 +217,45 @@ def receive_heartbeat(payload: HeartbeatRequest, request: Request):
     }
 
 # ====================================================================
-# 📊 ADMIN OBSERVABILITY & ANALYTICS DASHBOARD (UC5, FR-21, FR-22)
+# 📊 ADMIN OBSERVABILITY & DASHBOARD STATS (UC5, FR-21, FR-22)
 # ====================================================================
 @app.get("/api/v1/admin/dashboard-stats")
-def get_admin_dashboard_stats():
-    """
-    Endpoint cung cấp toàn bộ chỉ số giám sát thời gian thực cho Admin:
-    - Số người đang online (CCU)
-    - Số người đang nghe thuyết minh
-    - Thống kê theo ngôn ngữ, thiết bị, hiện vật
-    - Nhật ký du khách
-    """
+def get_admin_dashboard_stats(db: Session = Depends(get_db)):
     clean_expired_sessions()
     
     online_count = len(ACTIVE_SESSIONS)
     listening_count = sum(1 for s in ACTIVE_SESSIONS.values() if s.get("is_playing"))
+    total_audio_played = db.query(ListeningMetric).count()
     
-    # Phân bố theo ngôn ngữ
+    # Thống kê ngôn ngữ
     lang_counts: Dict[str, int] = {}
     for s in ACTIVE_SESSIONS.values():
-        lang = s.get("language_code", "unknown")
+        lang = s.get("language_code", "en")
         lang_counts[lang] = lang_counts.get(lang, 0) + 1
         
-    # Phân bố theo thiết bị
+    # Thống kê thiết bị
     device_counts = {"Mobile": 0, "Desktop": 0}
     for s in ACTIVE_SESSIONS.values():
         dev = s.get("device_type", "Mobile")
-        device_counts[dev] = device_counts.get(dev, 0) + 1
+        if dev in device_counts:
+            device_counts[dev] += 1
+        else:
+            device_counts["Mobile"] += 1
 
-    # Phân bố theo hiện vật đang xem
+    # Thống kê hiện vật đang xem
     exhibit_now: Dict[str, int] = {}
     for s in ACTIVE_SESSIONS.values():
         ex = s.get("exhibit_code", "HOME")
         exhibit_now[ex] = exhibit_now.get(ex, 0) + 1
 
-    # Thống kê tổng lượt nghe từ LISTENING_METRICS
-    total_audio_plays = len(LISTENING_METRICS)
-    
     return {
         "realtime": {
             "online_visitors": online_count,
             "active_listeners": listening_count,
             "total_visits_today": max(TOTAL_VISITORS_COUNTER, online_count),
-            "total_audio_played": total_audio_plays,
+            "total_audio_played": total_audio_played,
             "server_time": datetime.now().strftime("%H:%M:%S - %d/%m/%Y"),
-            "system_health": "HEALTHY",
-            "uptime_status": "ONLINE"
+            "system_health": "ONLINE"
         },
         "breakdown": {
             "by_language": lang_counts,
@@ -315,92 +265,240 @@ def get_admin_dashboard_stats():
         "recent_activity_logs": VISITOR_LOGS[:20],
         "active_sessions_list": [
             {
-                "session_id": sid[:8] + "...",
+                "session_id": sid[:8],
                 "exhibit": s.get("exhibit_code"),
                 "language": s.get("language_code"),
                 "is_listening": s.get("is_playing"),
                 "device": s.get("device_type"),
                 "connected_at": s.get("connected_at")
             }
-            for sid, s in list(ACTIVE_SESSIONS.items())[:25]
+            for sid, s in list(ACTIVE_SESSIONS.items())[:30]
         ]
     }
 
 # ====================================================================
-# 🏛️ EXHIBIT APIS
+# ➕ ADMIN EXHIBIT MANAGEMENT (UC3, FR-02, FR-04)
+# ====================================================================
+@app.post("/api/v1/admin/exhibits")
+def create_new_exhibit(req: CreateExhibitRequest, db: Session = Depends(get_db)):
+    """
+    Thêm hiện vật mới và lưu trữ bền vững vào CSDL
+    """
+    clean_code = req.code.strip().upper().replace(" ", "-")
+    
+    # Kiểm tra trùng mã
+    existing = db.query(Exhibit).filter(Exhibit.code == clean_code).first()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Mã hiện vật '{clean_code}' đã tồn tại!")
+
+    new_id = str(uuid.uuid4())
+    new_exhibit = Exhibit(
+        id=new_id,
+        code=clean_code,
+        title=req.title.strip(),
+        title_en=req.title_en.strip() if req.title_en else req.title.strip(),
+        room_id=req.room_id.strip() if req.room_id else "ROOM-01",
+        zone=req.zone.strip() if req.zone else "Khu trưng bày",
+        period=req.period.strip() if req.period else "Hiện vật lịch sử",
+        thumbnail_url=req.thumbnail_url.strip() if req.thumbnail_url else "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80",
+        content_version=1,
+        is_published=True,
+        is_active=True
+    )
+    new_source = ContentSource(
+        id=str(uuid.uuid4()),
+        exhibit_id=new_id,
+        original_text=req.original_text.strip(),
+        content_version=1
+    )
+    db.add(new_exhibit)
+    db.add(new_source)
+    db.commit()
+    db.refresh(new_exhibit)
+
+    total_count = db.query(Exhibit).count()
+    formatted = format_exhibit_response(new_exhibit, db, total_count)
+
+    return {
+        "status": "created",
+        "message": f"Đã thêm thành công hiện vật {new_exhibit.title} (Mã: {clean_code})",
+        "exhibit": formatted
+    }
+
+@app.delete("/api/v1/admin/exhibits/{code}")
+def delete_exhibit(code: str, db: Session = Depends(get_db)):
+    clean_code = code.strip().upper()
+    exhibit = db.query(Exhibit).filter(
+        (Exhibit.code == clean_code) | (Exhibit.id == code.strip())
+    ).first()
+    
+    if not exhibit:
+        raise HTTPException(status_code=404, detail="Không tìm thấy hiện vật để xóa")
+    
+    title = exhibit.title
+    db.delete(exhibit)
+    db.commit()
+    return {"status": "deleted", "message": f"Đã xóa hiện vật {title}"}
+
+# ====================================================================
+# 🏛️ PUBLIC EXHIBIT APIS
 # ====================================================================
 @app.get("/api/v1/exhibits")
-def get_all_exhibits():
-    """Lấy danh sách tất cả hiện vật phục vụ khách tham quan & tạo bảng QR"""
-    return EXHIBITS_DATABASE
+def get_all_exhibits(db: Session = Depends(get_db)):
+    exhibits = db.query(Exhibit).filter(Exhibit.is_active == True).order_by(Exhibit.created_at.asc()).all()
+    results = []
+    for idx, ex in enumerate(exhibits, 1):
+        formatted = format_exhibit_response(ex, db, idx)
+        # Gợi ý hiện vật tiếp theo theo vòng lặp
+        next_idx = (idx % len(exhibits))
+        formatted["next_code"] = exhibits[next_idx].code if len(exhibits) > 1 else None
+        results.append(formatted)
+    return results
 
 @app.get("/api/v1/exhibits/{identifier}")
-def get_exhibit_by_code_or_id(identifier: str):
+def get_exhibit_by_code_or_id(identifier: str, db: Session = Depends(get_db)):
     clean_id = identifier.strip().upper()
-    for exhibit in EXHIBITS_DATABASE:
-        if (exhibit["code"].upper() == clean_id or 
-            exhibit["display_code"].upper() == clean_id or 
-            exhibit["id"].upper() == clean_id):
-            return exhibit
-            
-    for exhibit in EXHIBITS_DATABASE:
-        if clean_id.replace('-', '') in exhibit["code"].upper().replace('-', ''):
-            return exhibit
+    exhibit = db.query(Exhibit).filter(
+        (Exhibit.code == clean_id) | (Exhibit.id == identifier.strip())
+    ).first()
+    
+    if not exhibit:
+        exhibits = db.query(Exhibit).all()
+        for ex in exhibits:
+            if clean_id.replace('-', '') in ex.code.upper().replace('-', ''):
+                exhibit = ex
+                break
 
-    raise HTTPException(status_code=404, detail=f"Không tìm thấy hiện vật với mã '{identifier}'")
+    if not exhibit:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy hiện vật với mã '{identifier}'")
+
+    return format_exhibit_response(exhibit, db)
 
 @app.get("/api/v1/exhibits/{identifier}/audio")
-async def get_exhibit_audio(identifier: str, lang: str = Query("en")):
+async def get_exhibit_audio(identifier: str, lang: str = Query("en"), db: Session = Depends(get_db)):
     clean_id = identifier.strip().upper()
-    target_exhibit = None
-    for ex in EXHIBITS_DATABASE:
-        if (ex["code"].upper() == clean_id or 
-            ex["display_code"].upper() == clean_id or 
-            ex["id"].upper() == clean_id):
-            target_exhibit = ex
-            break
+    exhibit = db.query(Exhibit).filter(
+        (Exhibit.code == clean_id) | (Exhibit.id == identifier.strip())
+    ).first()
+    
+    if not exhibit:
+        exhibits = db.query(Exhibit).all()
+        for ex in exhibits:
+            if clean_id.replace('-', '') in ex.code.upper().replace('-', ''):
+                exhibit = ex
+                break
 
-    if not target_exhibit:
+    if not exhibit:
         raise HTTPException(status_code=404, detail=f"Hiện vật '{identifier}' không tồn tại.")
 
-    cache_key = f"{target_exhibit['code']}_{lang}_v{target_exhibit['content_version']}"
-    
+    # Lấy văn bản gốc
+    content_src = db.query(ContentSource).filter_by(exhibit_id=exhibit.id).first()
+    original_text = content_src.original_text if content_src else exhibit.title
+
+    cache_key = f"{exhibit.code}_{lang}_v{exhibit.content_version}"
     if cache_key in TRANSLATION_CACHE:
         return TRANSLATION_CACHE[cache_key]
 
+    # Kiểm tra trong Localization và AudioMedia CSDL
+    loc = db.query(Localization).filter_by(
+        exhibit_id=exhibit.id,
+        language_code=lang,
+        content_version=exhibit.content_version
+    ).first()
+    
+    if loc:
+        audio_rec = db.query(AudioMedia).filter_by(localization_id=loc.id).first()
+        if audio_rec and os.path.exists(audio_rec.storage_path):
+            result_payload = {
+                "exhibit_code": exhibit.code,
+                "language": lang,
+                "translated_title": loc.translated_title,
+                "translated_text": loc.translated_text,
+                "original_text": original_text,
+                "audio_file_path": audio_rec.file_url,
+                "timestamps_json": loc.timestamps_json or [],
+                "duration_seconds": audio_rec.duration_seconds
+            }
+            TRANSLATION_CACHE[cache_key] = result_payload
+            return result_payload
+
     try:
-        translated_text = translate_text(target_exhibit["original_text"], lang)
-        
-        output_dir = os.path.join(".", "output", target_exhibit["code"])
+        # Dịch thuật
+        if lang == "vi":
+            translated_text = original_text
+            translated_title = exhibit.title
+        else:
+            translated_text = translate_text(original_text, lang)
+            translated_title = exhibit.title_en if (lang == "en" and exhibit.title_en) else translate_text(exhibit.title, lang)
+
+        output_dir = os.path.join(".", "output", exhibit.code)
         os.makedirs(output_dir, exist_ok=True)
         
-        audio_filename = f"{target_exhibit['code']}_{lang}.mp3"
+        audio_filename = f"{exhibit.code}_{lang}.mp3"
         full_disk_path = os.path.join(output_dir, audio_filename)
         
         await generate_audio(translated_text, lang, full_disk_path)
         
         timestamps = generate_subtitle_timestamps(translated_text)
-        web_audio_url = f"/output/{target_exhibit['code']}/{audio_filename}"
+        duration_sec = timestamps[-1]["end"] if timestamps else 30.0
+        web_audio_url = f"/output/{exhibit.code}/{audio_filename}"
         
+        # Lưu vào bảng Localization và AudioMedia trong CSDL
+        if not loc:
+            loc = Localization(
+                exhibit_id=exhibit.id,
+                language_code=lang,
+                translated_title=translated_title,
+                translated_text=translated_text,
+                timestamps_json=timestamps,
+                content_version=exhibit.content_version,
+                is_reviewed=False
+            )
+            db.add(loc)
+            db.flush()
+        else:
+            loc.translated_title = translated_title
+            loc.translated_text = translated_text
+            loc.timestamps_json = timestamps
+
+        audio_rec = db.query(AudioMedia).filter_by(localization_id=loc.id).first()
+        if not audio_rec:
+            audio_rec = AudioMedia(
+                localization_id=loc.id,
+                file_url=web_audio_url,
+                storage_path=full_disk_path,
+                duration_seconds=duration_sec,
+                bitrate_kbps=128,
+                status="ready"
+            )
+            db.add(audio_rec)
+        else:
+            audio_rec.file_url = web_audio_url
+            audio_rec.storage_path = full_disk_path
+            audio_rec.duration_seconds = duration_sec
+
+        db.commit()
+
         result_payload = {
-            "exhibit_code": target_exhibit["code"],
+            "exhibit_code": exhibit.code,
             "language": lang,
-            "translated_title": target_exhibit.get("title_en") if lang == "en" else target_exhibit["title"],
+            "translated_title": translated_title,
             "translated_text": translated_text,
-            "original_text": target_exhibit["original_text"],
+            "original_text": original_text,
             "audio_file_path": web_audio_url,
             "timestamps_json": timestamps,
-            "duration_seconds": timestamps[-1]["end"] if timestamps else 30
+            "duration_seconds": duration_sec
         }
         
         TRANSLATION_CACHE[cache_key] = result_payload
         return result_payload
 
     except Exception as e:
+        db.rollback()
         raise HTTPException(status_code=500, detail=f"Lỗi xử lý audio/dịch thuật: {str(e)}")
 
 @app.post("/api/v1/process-audio")
-async def process_translation_and_tts(payload: TranslationRequest):
+async def process_translation_and_tts(payload: TranslationRequest, db: Session = Depends(get_db)):
     try:
         results = []
         output_dir = os.path.join(".", "output", payload.exhibit_id)
@@ -433,25 +531,191 @@ async def process_translation_and_tts(payload: TranslationRequest):
         raise HTTPException(status_code=500, detail=f"Lỗi xử lý AI: {str(e)}")
 
 @app.post("/api/v1/metrics/listen")
-def record_listening_metric(metric: MetricReportRequest):
-    record = {
-        "exhibit_code": metric.exhibit_code,
-        "language_code": metric.language_code,
-        "listened_duration": metric.listened_duration,
-        "trigger_type": metric.trigger_type,
-        "timestamp": datetime.now().isoformat()
-    }
-    LISTENING_METRICS.append(record)
+def record_listening_metric(metric: MetricReportRequest, db: Session = Depends(get_db)):
+    ex = db.query(Exhibit).filter(Exhibit.code == metric.exhibit_code.strip().upper()).first()
+    exhibit_id = ex.id if ex else None
+
+    new_metric = ListeningMetric(
+        exhibit_id=exhibit_id,
+        exhibit_code=metric.exhibit_code,
+        language_code=metric.language_code,
+        listened_duration=metric.listened_duration,
+        trigger_type=metric.trigger_type,
+        timestamp=datetime.utcnow()
+    )
+    db.add(new_metric)
+    db.commit()
     
-    # Ghi nhận vào log hiển thị
+    total_records = db.query(ListeningMetric).count()
+    
     VISITOR_LOGS.insert(0, {
         "id": f"log-play-{int(time.time() * 1000)}",
         "visitor_id": "Visitor",
         "exhibit_code": metric.exhibit_code,
         "language": metric.language_code,
         "device": "Mobile",
-        "action": f"Nghe xong bài ({metric.listened_duration}s)",
+        "action": f"Nghe bài ({metric.listened_duration}s)",
         "time": datetime.now().strftime("%H:%M:%S"),
         "ip": "Client"
     })
-    return {"status": "recorded", "total_records": len(LISTENING_METRICS)}
+    return {"status": "recorded", "total_records": total_records}
+
+# ====================================================================
+# 🗺️ PRD TOUR ROUTES & GLOSSARY APIS
+# ====================================================================
+@app.get("/api/v1/routes")
+def get_tour_routes(db: Session = Depends(get_db)):
+    """Lấy danh sách các tuyến tham quan theo chuyên đề (PRD UC2)"""
+    routes = db.query(TourRoute).filter(TourRoute.is_active == True).all()
+    return [
+        {
+            "id": r.id,
+            "title": r.title,
+            "description": r.description,
+            "ordered_exhibits": r.ordered_exhibits_json,
+            "estimated_time": r.estimated_time
+        }
+        for r in routes
+    ]
+
+@app.get("/api/v1/glossary")
+def get_glossary(db: Session = Depends(get_db)):
+    """Lấy từ điển thuật ngữ lịch sử - quân sự chuẩn hóa (PRD FR-11)"""
+    terms = db.query(Glossary).all()
+    return [
+        {
+            "id": g.id,
+            "term_vi": g.term_vi,
+            "term_en": g.term_en,
+            "context_note": g.context_note
+        }
+        for g in terms
+    ]
+
+# ====================================================================
+# 🌐 PUBLIC SUPPORTED LANGUAGES API (DANH MỤC 15 NGÔN NGỮ KHẢ DỤNG)
+# ====================================================================
+@app.get("/api/v1/languages")
+def get_supported_languages(db: Session = Depends(get_db)):
+    """Lấy danh sách 15 ngôn ngữ khả dụng trong hệ thống từ database (PRD FR-11, BR-01)"""
+    langs = db.query(SupportedLanguage).filter(SupportedLanguage.is_active == True).order_by(SupportedLanguage.sort_order.asc()).all()
+    return [
+        {
+            "code": l.code,
+            "name_vi": l.name_vi,
+            "native_name": l.native_name,
+            "flag": l.flag_icon,
+            "voice_code": l.voice_code,
+            "is_default": l.is_default
+        }
+        for l in langs
+    ]
+
+# ====================================================================
+# 🗄️ ADMIN DATABASE EXPLORER API (SHOW TOÀN BỘ CÁC BẢNG PRD TRÊN UI)
+# ====================================================================
+@app.get("/api/v1/admin/database/overview")
+def get_database_overview(db: Session = Depends(get_db)):
+    """API cung cấp toàn bộ schema và dữ liệu các bảng CSDL theo chuẩn PRD cho Admin UI"""
+    table_configs = [
+        {
+            "name": "supported_language",
+            "displayName": "0. Ngôn ngữ khả dụng (supported_language)",
+            "service": "Localization Service",
+            "description": "Danh mục 15 ngôn ngữ khả dụng trong hệ thống kèm cờ quốc gia và model giọng đọc TTS",
+            "model": SupportedLanguage
+        },
+        {
+            "name": "exhibit",
+            "displayName": "1. Hiện vật (exhibit)",
+            "service": "Exhibit Core Service",
+            "description": "Quản lý định danh hiện vật trưng bày, phân khu, toạ độ & phiên bản",
+            "model": Exhibit
+        },
+        {
+            "name": "content_source",
+            "displayName": "2. Nội dung gốc (content_source)",
+            "service": "Content Management Service",
+            "description": "Văn bản thuyết minh tiếng Việt chuẩn được bảo tàng kiểm duyệt",
+            "model": ContentSource
+        },
+        {
+            "name": "localization",
+            "displayName": "3. Bản dịch & Phụ đề (localization)",
+            "service": "Localization Service",
+            "description": "Bản dịch đa ngôn ngữ và phụ đề timestamps JSON đồng bộ giọng đọc",
+            "model": Localization
+        },
+        {
+            "name": "audio_media",
+            "displayName": "4. Âm thanh AI (audio_media)",
+            "service": "Streaming & Media Service",
+            "description": "Quản lý tệp âm thanh thuyết minh AI, thời lượng và đường dẫn lưu trữ",
+            "model": AudioMedia
+        },
+        {
+            "name": "tour_route",
+            "displayName": "5. Tuyến tham quan (tour_route)",
+            "service": "Exhibit Core Service",
+            "description": "Lộ trình tham quan theo từng chủ đề lịch sử và thời gian dự kiến",
+            "model": TourRoute
+        },
+        {
+            "name": "glossary",
+            "displayName": "6. Từ điển thuật ngữ (glossary)",
+            "service": "Localization Service",
+            "description": "Chuẩn hóa thuật ngữ lịch sử - quân sự nhạy cảm theo PRD FR-11",
+            "model": Glossary
+        },
+        {
+            "name": "listening_metric",
+            "displayName": "7. Thống kê nghe (listening_metric)",
+            "service": "Analytics Service",
+            "description": "Ghi nhận số liệu lượt nghe ẩn danh, thời lượng và trigger quét mã QR",
+            "model": ListeningMetric
+        }
+    ]
+
+    overview = []
+    for cfg in table_configs:
+        model = cfg["model"]
+        columns = [
+            {
+                "name": col.name,
+                "type": str(col.type),
+                "primary_key": col.primary_key,
+                "nullable": col.nullable
+            }
+            for col in model.__table__.columns
+        ]
+        
+        query_rows = db.query(model).limit(50).all()
+        rows_data = []
+        for r in query_rows:
+            row_dict = {}
+            for col in model.__table__.columns:
+                val = getattr(r, col.name)
+                if isinstance(val, datetime):
+                    val = val.strftime("%Y-%m-%d %H:%M:%S")
+                elif isinstance(val, (dict, list)):
+                    val = json.dumps(val, ensure_ascii=False)
+                row_dict[col.name] = val
+            rows_data.append(row_dict)
+
+        overview.append({
+            "name": cfg["name"],
+            "displayName": cfg["displayName"],
+            "service": cfg["service"],
+            "description": cfg["description"],
+            "columns": columns,
+            "rowCount": db.query(model).count(),
+            "rows": rows_data
+        })
+
+    return {
+        "status": "ok",
+        "total_tables": len(overview),
+        "database_type": "SQLite / PostgreSQL (Dual DB Support)",
+        "tables": overview
+    }
+
