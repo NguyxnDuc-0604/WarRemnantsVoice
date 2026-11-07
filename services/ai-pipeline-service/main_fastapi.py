@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, Request, Depends
+﻿from fastapi import FastAPI, HTTPException, Query, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -155,11 +155,23 @@ class CreateExhibitRequest(BaseModel):
     code: str
     title: str
     title_en: Optional[str] = ""
-    zone: Optional[str] = "Khu trưng bày"
+    zone: Optional[str] = "Khu trÆ°ng bÃ y"
     room_id: Optional[str] = "ROOM-01"
     period: Optional[str] = ""
     thumbnail_url: Optional[str] = ""
     original_text: str
+
+class UpdateExhibitThumbnailRequest(BaseModel):
+    thumbnail_url: str
+
+class UpdateExhibitRequest(BaseModel):
+    title: Optional[str] = None
+    title_en: Optional[str] = None
+    zone: Optional[str] = None
+    room_id: Optional[str] = None
+    period: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    original_text: Optional[str] = None
 
 @app.get("/")
 def health_check(db: Session = Depends(get_db)):
@@ -341,6 +353,76 @@ def delete_exhibit(code: str, db: Session = Depends(get_db)):
     return {"status": "deleted", "message": f"Đã xóa hiện vật {title}"}
 
 # ====================================================================
+
+@app.patch("/api/v1/admin/exhibits/{code}/thumbnail")
+def update_exhibit_thumbnail(code: str, req: UpdateExhibitThumbnailRequest, db: Session = Depends(get_db)):
+    """Cáº­p nháº­t nhanh URL áº£nh Ä‘áº¡i diá»‡n cho hiá»‡n váº­t"""
+    clean_code = code.strip().upper()
+    exhibit = db.query(Exhibit).filter(
+        (Exhibit.code == clean_code) | (Exhibit.id == code.strip())
+    ).first()
+    
+    if not exhibit:
+        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y hiá»‡n váº­t")
+    
+    new_url = req.thumbnail_url.strip()
+    if not new_url:
+        raise HTTPException(status_code=400, detail="ÄÆ°á»ng dáº«n áº£nh khÃ´ng Ä‘Æ°á»£c Ä‘á»ƒ trá»‘ng")
+    
+    exhibit.thumbnail_url = new_url
+    db.commit()
+    db.refresh(exhibit)
+    return {
+        "status": "updated",
+        "message": f"ÄÃ£ cáº­p nháº­t áº£nh Ä‘áº¡i diá»‡n cho hiá»‡n váº­t '{exhibit.title}'",
+        "thumbnail_url": exhibit.thumbnail_url
+    }
+
+@app.put("/api/v1/admin/exhibits/{code}")
+def update_exhibit_full(code: str, req: UpdateExhibitRequest, db: Session = Depends(get_db)):
+    """Cáº­p nháº­t thÃ´ng tin chi tiáº¿t hiá»‡n váº­t vÃ  vÄƒn báº£n gá»‘c"""
+    clean_code = code.strip().upper()
+    exhibit = db.query(Exhibit).filter(
+        (Exhibit.code == clean_code) | (Exhibit.id == code.strip())
+    ).first()
+    
+    if not exhibit:
+        raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y hiá»‡n váº­t")
+    
+    if req.title is not None:
+        exhibit.title = req.title.strip()
+    if req.title_en is not None:
+        exhibit.title_en = req.title_en.strip()
+    if req.zone is not None:
+        exhibit.zone = req.zone.strip()
+    if req.room_id is not None:
+        exhibit.room_id = req.room_id.strip()
+    if req.period is not None:
+        exhibit.period = req.period.strip()
+    if req.thumbnail_url is not None and req.thumbnail_url.strip():
+        exhibit.thumbnail_url = req.thumbnail_url.strip()
+    
+    if req.original_text is not None:
+        content_src = db.query(ContentSource).filter_by(exhibit_id=exhibit.id).first()
+        if content_src:
+            content_src.original_text = req.original_text.strip()
+        else:
+            new_source = ContentSource(
+                id=str(uuid.uuid4()),
+                exhibit_id=exhibit.id,
+                original_text=req.original_text.strip(),
+                content_version=1
+            )
+            db.add(new_source)
+
+    db.commit()
+    db.refresh(exhibit)
+    formatted = format_exhibit_response(exhibit, db)
+    return {
+        "status": "updated",
+        "message": f"ÄÃ£ cáº­p nháº­t hiá»‡n váº­t '{exhibit.title}' thÃ nh cÃ´ng",
+        "exhibit": formatted
+    }
 # 🏛️ PUBLIC EXHIBIT APIS
 # ====================================================================
 @app.get("/api/v1/exhibits")
@@ -719,3 +801,54 @@ def get_database_overview(db: Session = Depends(get_db)):
         "tables": overview
     }
 
+
+
+# ====================================================================
+# DATABASE EXPLORER - Dynamic table list & rows
+# ====================================================================
+@app.get("/api/v1/admin/db/tables")
+def admin_list_tables(db: Session = Depends(get_db)):
+    """Return a JSON array of all user-defined tables."""
+    try:
+        return {"tables": list_table_names(db)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to list tables: {exc}")
+
+@app.get("/api/v1/admin/db/tables/{table_name}")
+def admin_get_table(table_name: str, limit: int = 100, db: Session = Depends(get_db)):
+    """Return up to limit rows from table_name as JSON."""
+    try:
+        rows = fetch_table_rows(db, table_name, limit)
+        return {"table": table_name, "rows": rows}
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read table {table_name}: {exc}")
+
+# ====================================================================
+# ADMIN TUNNEL URL - chi admin moi duoc lay link Cloudflare Tunnel
+# ====================================================================
+import secrets as _secrets
+from fastapi.security import HTTPBasic as _HTTPBasic, HTTPBasicCredentials as _HTTPBasicCredentials
+
+_security_basic = _HTTPBasic(auto_error=False)
+_ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin-secret")
+
+def _require_admin(creds: _HTTPBasicCredentials = Depends(_security_basic)):
+    if not creds:
+        raise HTTPException(status_code=401, detail="Unauthorized",
+                            headers={"WWW-Authenticate": "Basic"})
+    ok_user = _secrets.compare_digest(creds.username, "admin")
+    ok_pass = _secrets.compare_digest(creds.password, _ADMIN_PASSWORD)
+    if not (ok_user and ok_pass):
+        raise HTTPException(status_code=401, detail="Unauthorized",
+                            headers={"WWW-Authenticate": "Basic"})
+
+@app.get("/api/v1/admin/tunnel-url")
+def get_tunnel_url(_: None = Depends(_require_admin)):
+    """Tra ve Cloudflare Tunnel URL chi danh cho admin xac thuc."""
+    tunnel_url = os.getenv("CLOUDFLARE_TUNNEL_URL", "")
+    if not tunnel_url:
+        raise HTTPException(status_code=500,
+                            detail="CLOUDFLARE_TUNNEL_URL chua duoc cau hinh tren server")
+    return {"tunnel_url": tunnel_url}

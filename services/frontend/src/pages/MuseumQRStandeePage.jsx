@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import {
   QrCode, ExternalLink, Printer, Download, Globe,
-  MapPin, Check, Copy, Wifi, Share2, Sparkles, Smartphone, CheckCircle2, AlertTriangle
+  MapPin, Check, Copy, Wifi, Share2, Sparkles, Smartphone, CheckCircle2, AlertTriangle, Lock, KeyRound, AlertCircle
 } from 'lucide-react'
 import { fetchExhibits } from '../api/pipelineApi'
 import './MuseumQRStandeePage.css'
@@ -23,6 +23,28 @@ export default function MuseumQRStandeePage() {
     return defaultBaseUrl
   })
   const [isEditingHost, setIsEditingHost] = useState(false)
+
+  // 🔒 Bảo vệ phần chỉnh sửa tunnel URL - chỉ admin mới được thay đổi
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(() => {
+    return sessionStorage.getItem('wr_admin_authenticated') === 'true'
+  })
+  const [showPinPrompt, setShowPinPrompt] = useState(false)
+  const [pinInput, setPinInput] = useState('')
+  const [pinErr, setPinErr] = useState(false)
+  const ADMIN_PINS = ['8888', 'admin123', 'baotang2026']
+
+  const handleAdminPin = () => {
+    if (ADMIN_PINS.includes(pinInput.trim())) {
+      sessionStorage.setItem('wr_admin_authenticated', 'true')
+      setIsAdminUnlocked(true)
+      setShowPinPrompt(false)
+      setIsEditingHost(true)
+      setPinInput('')
+      setPinErr(false)
+    } else {
+      setPinErr(true)
+    }
+  }
 
   useEffect(() => {
     fetchExhibits()
@@ -149,11 +171,57 @@ export default function MuseumQRStandeePage() {
             <button
               type="button"
               className={`preset-btn ${isEditingHost || isTunnelUrl ? 'active' : ''}`}
-              onClick={() => setIsEditingHost(!isEditingHost)}
+              onClick={() => {
+                if (isAdminUnlocked) {
+                  setIsEditingHost(!isEditingHost)
+                } else {
+                  setShowPinPrompt(true)
+                  setIsEditingHost(false)
+                }
+              }}
             >
-              {isEditingHost ? 'Đóng ô nhập' : '🔗 Dán Link Cloudflare Tunnel (Cho điện thoại 4G/5G)'}
+              <Lock size={12} />
+              {isEditingHost ? 'Đóng ô nhập' : '🔗 Dán Link Cloudflare Tunnel (Dành cho cán bộ)'}
             </button>
           </div>
+
+          {/* PIN prompt - khách tham quan KHÔNG thể chỉnh sửa link tunnel */}
+          {showPinPrompt && (
+            <div className="host-custom-input-row animate-fade-in-up">
+              <div className="flex items-center gap-2" style={{ marginBottom: '8px' }}>
+                <Lock size={14} style={{ color: 'var(--color-amber-400)' }} />
+                <p className="text-xs text-muted">
+                  <strong>Chức năng dành riêng cho cán bộ bảo tàng.</strong> Nhập mã PIN quản trị để tiếp tục:
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  placeholder="Nhập mã PIN admin (mặc định: 8888)"
+                  value={pinInput}
+                  onChange={(e) => { setPinInput(e.target.value); setPinErr(false) }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { handleAdminPin() } }}
+                  autoFocus
+                  maxLength={20}
+                />
+                <button type="button" className="btn btn-primary btn-sm" onClick={handleAdminPin}>
+                  <KeyRound size={14} />
+                  Xác nhận
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setShowPinPrompt(false); setPinInput(''); setPinErr(false) }}>
+                  Hủy
+                </button>
+              </div>
+              {pinErr && (
+                <div className="flex items-center gap-1" style={{ marginTop: '4px' }}>
+                  <AlertCircle size={13} style={{ color: '#fca5a5' }} />
+                  <p className="text-xs" style={{ color: '#fca5a5' }}>Mã PIN không chính xác! Vui lòng thử lại.</p>
+                </div>
+              )}
+            </div>
+          )}
 
           {isEditingHost && (
             <div className="host-custom-input-row animate-fade-in-up">

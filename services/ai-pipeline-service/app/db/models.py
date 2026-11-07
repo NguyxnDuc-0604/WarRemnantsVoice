@@ -28,7 +28,7 @@ class Exhibit(Base):
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     radius = Column(Integer, default=15)
-    thumbnail_url = Column(String(500), nullable=True)
+    thumbnail_url = Column(Text, nullable=True)
     content_version = Column(Integer, nullable=False, default=1)
     is_published = Column(Boolean, nullable=False, default=True)
     is_active = Column(Boolean, nullable=False, default=True)

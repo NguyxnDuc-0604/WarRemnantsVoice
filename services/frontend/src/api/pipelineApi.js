@@ -1,4 +1,4 @@
-const API_BASE = '/api/v1'
+﻿const API_BASE = '/api/v1'
 
 /**
  * Lấy danh sách tất cả hiện vật từ backend
@@ -108,6 +108,38 @@ export async function createExhibit(data) {
 /**
  * Admin: Xóa hiện vật
  */
+/**
+ * Admin: Cáº­p nháº­t URL áº£nh Ä‘áº¡i diá»‡n cho hiá»‡n váº­t
+ */
+export async function updateExhibitThumbnail(code, thumbnailUrl) {
+  const response = await fetch(`${API_BASE}/admin/exhibits/${encodeURIComponent(code)}/thumbnail`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ thumbnail_url: thumbnailUrl })
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.detail || 'KhÃ´ng thá»ƒ cáº­p nháº­t áº£nh hiá»‡n váº­t.')
+  }
+  return response.json()
+}
+
+/**
+ * Admin: Cáº­p nháº­t thÃ´ng tin chi tiáº¿t hiá»‡n váº­t
+ */
+export async function updateExhibit(code, data) {
+  const response = await fetch(`${API_BASE}/admin/exhibits/${encodeURIComponent(code)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.detail || 'KhÃ´ng thá»ƒ cáº­p nháº­t hiá»‡n váº­t.')
+  }
+  return response.json()
+}
+
 export async function deleteExhibit(code) {
   const response = await fetch(`${API_BASE}/admin/exhibits/${encodeURIComponent(code)}`, {
     method: 'DELETE',

@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import {
   Users, Headphones, Smartphone, Monitor, Activity, PlusCircle,
   QrCode, Trash2, ExternalLink, RefreshCw, Download, Check, Copy,
   Globe, Clock, MapPin, Eye, CheckCircle2, AlertCircle, ShieldCheck,
-  Lock, LogOut, KeyRound, Database, Table, HardDrive, Search, Layers
+  Lock, LogOut, KeyRound, Database, Table, HardDrive, Search, Layers, Edit, Camera, Image as ImageIcon
 } from 'lucide-react'
-import { fetchAdminStats, fetchExhibits, createExhibit, deleteExhibit, fetchDatabaseOverview } from '../api/pipelineApi'
+import { fetchAdminStats, fetchExhibits, createExhibit, deleteExhibit, updateExhibit, updateExhibitThumbnail, fetchDatabaseOverview } from '../api/pipelineApi'
 import { LANGUAGES } from '../components/LanguageSelector'
 import './AdminDashboardPage.css'
 
@@ -44,6 +44,21 @@ export default function AdminDashboardPage() {
   const [formError, setFormError] = useState(null)
 
   // Modal xem mã QR hiện vật vừa tạo hoặc đã có
+    // Modal chỉnh sửa toàn bộ thông tin hiện vật
+  const [editingExhibit, setEditingExhibit] = useState(null)
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    title_en: '',
+    zone: '',
+    room_id: '',
+    period: '',
+    thumbnail_url: '',
+    original_text: '',
+  })
+  const [isUpdatingExhibit, setIsUpdatingExhibit] = useState(false)
+  const [editSuccess, setEditSuccess] = useState('')
+  const [editError, setEditError] = useState('')
+
   const [selectedQrExhibit, setSelectedQrExhibit] = useState(null)
   const [qrModalDataUrl, setQrModalDataUrl] = useState('')
   const [copiedLink, setCopiedLink] = useState(false)
@@ -59,6 +74,139 @@ export default function AdminDashboardPage() {
     thumbnail_url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80',
     original_text: '',
   })
+
+      // Trạng thái tải ảnh xem trước ('idle' | 'loading' | 'success' | 'error')
+  const [createImgStatus, setCreateImgStatus] = useState('idle')
+  const [editImgStatus, setEditImgStatus] = useState('idle')
+
+  // Hàm chuẩn hóa và tự động sửa link ảnh (Google Drive, Dropbox, khoảng trắng...)
+  const cleanImageUrl = (rawUrl) => {
+    if (!rawUrl) return ''
+    let url = rawUrl.trim()
+
+    // Chuyển link Google Drive chia sẻ sang link ảnh trực tiếp
+    // Dạng 1: https://drive.google.com/file/d/FILE_ID/view...
+    const gDriveMatch1 = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/)
+    if (gDriveMatch1 && gDriveMatch1[1]) {
+      return `https://drive.google.com/thumbnail?id=${gDriveMatch1[1]}&sz=w1000`
+    }
+    // Dạng 2: https://drive.google.com/open?id=FILE_ID
+    const gDriveMatch2 = url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/)
+    if (gDriveMatch2 && gDriveMatch2[1]) {
+      return `https://drive.google.com/thumbnail?id=${gDriveMatch2[1]}&sz=w1000`
+    }
+    // Dạng 3: https://drive.google.com/uc?id=FILE_ID
+    const gDriveMatch3 = url.match(/drive\.google\.com\/uc\?.*?id=([a-zA-Z0-9_-]+)/)
+    if (gDriveMatch3 && gDriveMatch3[1]) {
+      return `https://drive.google.com/thumbnail?id=${gDriveMatch3[1]}&sz=w1000`
+    }
+
+    // Chuyển link Dropbox sang link ảnh trực tiếp (raw=1)
+    if (url.includes('dropbox.com') && url.includes('dl=0')) {
+      return url.replace('dl=0', 'raw=1')
+    }
+
+    return url
+  }
+
+  // Thay đổi URL ảnh và chuẩn hóa
+  const handleThumbUrlChange = (val, target = 'create') => {
+    const cleaned = cleanImageUrl(val)
+    if (target === 'create') {
+      setFormData((prev) => ({ ...prev, thumbnail_url: cleaned }))
+      setCreateImgStatus(cleaned ? 'loading' : 'idle')
+    } else {
+      setEditFormData((prev) => ({ ...prev, thumbnail_url: cleaned }))
+      setEditImgStatus(cleaned ? 'loading' : 'idle')
+    }
+  }
+
+  // Tải file ảnh trực tiếp từ máy tính (chuyển sang Base64 Data URL)
+  const handleFileSelect = (e, target = 'create') => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 8 * 1024 * 1024) {
+      alert('Vui lòng chọn ảnh có dung lượng dưới 8MB để đảm bảo tốc độ phản hồi nhanh nhất.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const base64Url = event.target.result
+      if (target === 'create') {
+        setFormData((prev) => ({ ...prev, thumbnail_url: base64Url }))
+        setCreateImgStatus('success')
+      } else {
+        setEditFormData((prev) => ({ ...prev, thumbnail_url: base64Url }))
+        setEditImgStatus('success')
+      }
+    }
+    reader.readAsDataURL(file)
+  }
+
+  // Mở modal sửa toàn bộ thông tin hiện vật
+  const openEditModal = (exhibit) => {
+    setEditingExhibit(exhibit)
+    setEditFormData({
+      title: exhibit.title || '',
+      title_en: exhibit.title_en || '',
+      zone: exhibit.zone || '',
+      room_id: exhibit.room_id || '',
+      period: exhibit.period || '',
+      thumbnail_url: exhibit.thumbnail_url || '',
+      original_text: exhibit.original_text || '',
+    })
+    setEditSuccess('')
+    setEditError('')
+    setEditImgStatus(exhibit.thumbnail_url ? 'success' : 'idle')
+  }
+
+  // Lưu toàn bộ thông tin hiện vật vào CSDL
+  const handleSaveEditExhibit = async (e) => {
+    if (e) e.preventDefault()
+    if (!editingExhibit) return
+    if (!editFormData.title.trim() || !editFormData.original_text.trim()) {
+      setEditError('Tên hiện vật và Nội dung thuyết minh không được để trống!')
+      return
+    }
+
+    setIsUpdatingExhibit(true)
+    setEditError('')
+    setEditSuccess('')
+
+    const payload = {
+      ...editFormData,
+      thumbnail_url: cleanImageUrl(editFormData.thumbnail_url)
+    }
+
+    try {
+      const res = await updateExhibit(editingExhibit.code, payload)
+      setEditSuccess(`Đã cập nhật hiện vật "${payload.title}" thành công!`)
+
+      // Cập nhật ngay trong state danh sách hiện vật
+      setExhibits((prev) =>
+        prev.map((ex) =>
+          ex.code === editingExhibit.code
+            ? { ...ex, ...payload }
+            : ex
+        )
+      )
+
+      // Đồng bộ nạp lại database overview và danh sách hiện vật
+      loadDbOverview()
+      loadExhibitsList()
+
+      setTimeout(() => {
+        setEditingExhibit(null)
+        setEditSuccess('')
+      }, 1200)
+    } catch (err) {
+      setEditError(err.message || 'Lỗi khi cập nhật thông tin hiện vật.')
+    } finally {
+      setIsUpdatingExhibit(false)
+    }
+  }
 
   // Xử lý đăng nhập bằng mã PIN
   const handleLogin = (e) => {
@@ -728,17 +876,66 @@ export default function AdminDashboardPage() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label" htmlFor="ex_thumb">
-                      Đường Dẫn Ảnh Đại Diện (Image URL)
-                    </label>
-                    <input
-                      id="ex_thumb"
-                      type="text"
-                      className="form-input"
-                      placeholder="https://images.unsplash.com/..."
-                      value={formData.thumbnail_url}
-                      onChange={(e) => setFormData({ ...formData, thumbnail_url: e.target.value })}
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="form-label" htmlFor="ex_thumb">
+                        Đường Dẫn Ảnh Đại Diện (Image URL)
+                      </label>
+                      <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer', fontSize: '0.75rem', padding: '2px 8px' }}>
+                        <Camera size={13} />
+                        <span>📁 Tải ảnh từ máy tính</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={(e) => handleFileSelect(e, 'create')}
+                        />
+                      </label>
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        id="ex_thumb"
+                        type="text"
+                        className="form-input"
+                        style={{ flex: 1 }}
+                        placeholder="Dán link ảnh (Unsplash, Google Drive, Imgur...) hoặc chọn ảnh từ máy tính"
+                        value={formData.thumbnail_url}
+                        onChange={(e) => handleThumbUrlChange(e.target.value, 'create')}
+                      />
+                      {formData.thumbnail_url && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => {
+                            setFormData({ ...formData, thumbnail_url: '' })
+                            setCreateImgStatus('idle')
+                          }}
+                          title="Xóa link ảnh"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    {formData.thumbnail_url && (
+                      <div className="admin-thumb-preview-box">
+                        <img
+                          key={formData.thumbnail_url}
+                          src={cleanImageUrl(formData.thumbnail_url)}
+                          alt="Xem trước ảnh"
+                          className="admin-thumb-preview-img"
+                          onLoad={() => setCreateImgStatus('success')}
+                          onError={() => setCreateImgStatus('error')}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <span className="text-xs font-semibold block">Xem trước ảnh đại diện</span>
+                          {createImgStatus === 'success' && (
+                            <span className="text-xs" style={{ color: '#10b981' }}>✓ Ảnh tải thành công</span>
+                          )}
+                          {createImgStatus === 'error' && (
+                            <span className="text-xs" style={{ color: '#ef4444' }}>⚠ Không tải được ảnh từ link này (hãy bấm "Tải ảnh từ máy tính")</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="form-group">
@@ -792,11 +989,25 @@ export default function AdminDashboardPage() {
                 <div className="admin-exhibits-items">
                   {exhibits.map((ex) => (
                     <div key={ex.code} className="admin-exhibit-row">
-                      <img
-                        src={ex.thumbnail_url}
-                        alt={ex.title}
-                        className="admin-exhibit-thumb"
-                      />
+                      <div
+                        className="admin-exhibit-thumb-container"
+                        onClick={() => openEditModal(ex)}
+                        title="Nhấp để chỉnh sửa toàn bộ thông tin hiện vật"
+                      >
+                        <img
+                          src={ex.thumbnail_url}
+                          alt={ex.title}
+                          className="admin-exhibit-thumb"
+                          onError={(e) => {
+                            e.target.onerror = null
+                            e.target.src = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=400&q=80'
+                          }}
+                        />
+                        <div className="admin-thumb-hover-overlay">
+                          <Edit size={13} />
+                          <span>Sửa</span>
+                        </div>
+                      </div>
 
                       <div className="admin-exhibit-info">
                         <div className="flex items-center gap-2">
@@ -808,6 +1019,16 @@ export default function AdminDashboardPage() {
                       </div>
 
                       <div className="admin-exhibit-actions">
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => openEditModal(ex)}
+                          title="Chỉnh sửa toàn bộ thông tin hiện vật"
+                        >
+                          <Edit size={14} />
+                          <span>Sửa</span>
+                        </button>
+
                         <button
                           type="button"
                           className="btn btn-secondary btn-sm"
@@ -1100,6 +1321,298 @@ export default function AdminDashboardPage() {
                 </div>
               )
             })()}
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════════════════════════
+            MODAL CHỈNH SỬA TOÀN BỘ THÔNG TIN HIỆN VẬT
+           ════════════════════════════════════════════════════════════════ */}
+        {editingExhibit && (
+          <div className="qr-modal-backdrop" onClick={() => setEditingExhibit(null)}>
+            <div className="qr-modal-card glass-card animate-fade-in-up" style={{ maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+              <div className="qr-modal-header" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'rgba(15, 23, 42, 0.95)', backdropFilter: 'blur(8px)' }}>
+                <div>
+                  <span className="badge badge-amber">{editingExhibit.display_code || editingExhibit.code}</span>
+                  <h3 className="text-base font-bold" style={{ marginTop: '4px' }}>
+                    Chỉnh Sửa Hiện Vật: {editingExhibit.title}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setEditingExhibit(null)}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEditExhibit} className="qr-modal-body" style={{ gap: '1rem', padding: '1.25rem' }}>
+                {editSuccess && (
+                  <div className="alert-box alert-success animate-fade-in-up" style={{ margin: 0 }}>
+                    <CheckCircle2 size={16} />
+                    <span>{editSuccess}</span>
+                  </div>
+                )}
+
+                {editError && (
+                  <div className="alert-box alert-error animate-fade-in-up" style={{ margin: 0 }}>
+                    <AlertCircle size={16} />
+                    <span>{editError}</span>
+                  </div>
+                )}
+
+                {/* Hàng 1: Mã hiện vật (Readonly) & Thời kỳ */}
+                <div className="form-group-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label">
+                      Mã Hiện Vật (Định danh QR)
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input text-muted"
+                      value={editingExhibit.code}
+                      disabled
+                      title="Mã hiện vật cố định để đảm bảo các mã QR và file audio đã sinh không bị mất liên kết"
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label" htmlFor="edit_period">
+                      Thời Kỳ Lịch Sử
+                    </label>
+                    <input
+                      id="edit_period"
+                      type="text"
+                      className="form-input"
+                      placeholder="Ví dụ: 1965 - 1975"
+                      value={editFormData.period}
+                      onChange={(e) => setEditFormData({ ...editFormData, period: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Hàng 2: Tên hiện vật VN & EN */}
+                <div className="form-group">
+                  <label className="form-label" htmlFor="edit_title">
+                    Tên Hiện Vật Tiếng Việt <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    id="edit_title"
+                    type="text"
+                    className="form-input"
+                    value={editFormData.title}
+                    onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="edit_title_en">
+                    Tên Hiện Vật Tiếng Anh (English)
+                  </label>
+                  <input
+                    id="edit_title_en"
+                    type="text"
+                    className="form-input"
+                    value={editFormData.title_en}
+                    onChange={(e) => setEditFormData({ ...editFormData, title_en: e.target.value })}
+                  />
+                </div>
+
+                {/* Hàng 3: Khu vực & Mã phòng */}
+                <div className="form-group-row">
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label" htmlFor="edit_zone">
+                      Khu Vực Trưng Bày
+                    </label>
+                    <input
+                      id="edit_zone"
+                      type="text"
+                      className="form-input"
+                      value={editFormData.zone}
+                      onChange={(e) => setEditFormData({ ...editFormData, zone: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label className="form-label" htmlFor="edit_room">
+                      Mã Phòng / Bãi
+                    </label>
+                    <input
+                      id="edit_room"
+                      type="text"
+                      className="form-input"
+                      value={editFormData.room_id}
+                      onChange={(e) => setEditFormData({ ...editFormData, room_id: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Hàng 4: Ảnh đại diện & Live preview */}
+                <div className="form-group">
+                  <div className="flex items-center justify-between">
+                    <label className="form-label" htmlFor="edit_thumb">
+                      Đường Dẫn Ảnh Đại Diện (Image URL)
+                    </label>
+                    <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer', fontSize: '0.75rem', padding: '2px 8px' }}>
+                      <Camera size={13} />
+                      <span>📁 Tải ảnh từ máy tính</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => handleFileSelect(e, 'edit')}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      id="edit_thumb"
+                      type="text"
+                      className="form-input"
+                      style={{ flex: 1 }}
+                      placeholder="Dán link ảnh (Unsplash, Google Drive, Imgur...) hoặc chọn ảnh từ máy tính"
+                      value={editFormData.thumbnail_url}
+                      onChange={(e) => handleThumbUrlChange(e.target.value, 'edit')}
+                    />
+                    {editFormData.thumbnail_url && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => {
+                          setEditFormData({ ...editFormData, thumbnail_url: '' })
+                          setEditImgStatus('idle')
+                        }}
+                        title="Xóa link ảnh"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted" style={{ marginTop: '4px' }}>
+                    💡 Hỗ trợ link ảnh trực tiếp (.jpg, .png, .webp), link chia sẻ <strong>Google Drive</strong> (tự động nhận diện), hoặc bấm <strong>"📁 Tải ảnh từ máy tính"</strong>.
+                  </p>
+                </div>
+
+                {/* Khung xem trước ảnh */}
+                <div className="edit-thumb-preview-box">
+                  <div className="edit-thumb-preview-header flex items-center justify-between">
+                    <span className="text-xs font-semibold">Xem trước ảnh thực tế:</span>
+                    {editImgStatus === 'success' && (
+                      <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+                        <CheckCircle2 size={11} /> Ảnh hợp lệ
+                      </span>
+                    )}
+                    {editImgStatus === 'loading' && (
+                      <span className="text-xs text-amber font-semibold">Đang tải ảnh...</span>
+                    )}
+                    {editImgStatus === 'error' && (
+                      <span className="badge badge-error" style={{ fontSize: '0.7rem' }}>
+                        <AlertCircle size={11} /> Link không tải được ảnh
+                      </span>
+                    )}
+                  </div>
+
+                  {editFormData.thumbnail_url ? (
+                    <div className="edit-thumb-preview-media">
+                      <img
+                        key={editFormData.thumbnail_url}
+                        src={cleanImageUrl(editFormData.thumbnail_url)}
+                        alt="Xem trước ảnh"
+                        className="edit-thumb-preview-img"
+                        onLoad={() => setEditImgStatus('success')}
+                        onError={() => setEditImgStatus('error')}
+                      />
+                    </div>
+                  ) : (
+                    <div className="edit-thumb-preview-empty">
+                      <ImageIcon size={32} style={{ opacity: 0.3 }} />
+                      <span className="text-xs text-muted">Chưa có ảnh (dán URL hoặc chọn ảnh từ máy tính)</span>
+                    </div>
+                  )}
+
+                  {editImgStatus === 'error' && (
+                    <div className="alert-box alert-error animate-fade-in-up" style={{ marginTop: '8px', padding: '8px 12px' }}>
+                      <AlertCircle size={14} />
+                      <span className="text-xs">
+                        Không thể hiển thị ảnh từ link này. Link có thể là trang web thay vì file ảnh, hoặc máy chủ ảnh chặn truy cập. Bạn có thể bấm nút <strong>"📁 Tải ảnh từ máy tính"</strong> ở trên hoặc chọn ảnh mẫu bên dưới:
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Gợi ý một số link ảnh mẫu bảo tàng */}
+                <div className="sample-thumbnails-picker">
+                  <span className="text-xs text-muted">Hoặc chọn ảnh mẫu nhanh:</span>
+                  <div className="sample-thumbs-row">
+                    {[
+                      { name: 'Máy bay tiêm kích', url: 'https://images.unsplash.com/photo-1508614589041-895b88991e3e?auto=format&fit=crop&w=800&q=80' },
+                      { name: 'Xe tăng thiết giáp', url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80' },
+                      { name: 'Tài liệu lịch sử', url: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=800&q=80' },
+                      { name: 'Bảo tàng & Di tích', url: 'https://images.unsplash.com/photo-1566127444979-b3d2b654e3d7?auto=format&fit=crop&w=800&q=80' }
+                    ].map((item) => (
+                      <button
+                        key={item.name}
+                        type="button"
+                        className="sample-thumb-btn"
+                        onClick={() => handleThumbUrlChange(item.url, 'edit')}
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hàng 5: Nội dung thuyết minh gốc tiếng Việt */}
+                <div className="form-group">
+                  <label className="form-label" htmlFor="edit_text">
+                    Nội Dung Thuyết Minh Tiếng Việt Gốc <span className="text-danger">*</span>
+                  </label>
+                  <textarea
+                    id="edit_text"
+                    className="form-textarea"
+                    rows={5}
+                    placeholder="Nội dung thuyết minh chuẩn..."
+                    value={editFormData.original_text}
+                    onChange={(e) => setEditFormData({ ...editFormData, original_text: e.target.value })}
+                    required
+                  />
+                  <p className="text-xs text-muted" style={{ marginTop: '4px' }}>
+                    💡 Khi cập nhật bài thuyết minh, AI sẽ tự động áp dụng nội dung mới này cho du khách quét mã QR.
+                  </p>
+                </div>
+
+                <div className="qr-modal-footer" style={{ marginTop: '0.5rem', padding: 0 }}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setEditingExhibit(null)}
+                    disabled={isUpdatingExhibit}
+                  >
+                    Hủy bỏ
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary btn-sm"
+                    disabled={isUpdatingExhibit || !editFormData.title.trim() || !editFormData.original_text.trim()}
+                  >
+                    {isUpdatingExhibit ? (
+                      <>
+                        <span className="spinner" />
+                        <span>Đang lưu vào CSDL...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check size={14} />
+                        <span>Lưu Thay Đổi Vào CSDL</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Play, Pause, RotateCcw, RotateCw, Volume2, Globe, MapPin,
@@ -76,6 +76,8 @@ export default function ExhibitVisitorPage() {
         if (!isMounted) return
         setExhibit(data)
         setLoading(false)
+        // Luu ma hien vat gan nhat de lan sau khong can quet lai (FR-07)
+        localStorage.setItem('war_remnants_last_code', data.code)
       })
       .catch((err) => {
         if (!isMounted) return
