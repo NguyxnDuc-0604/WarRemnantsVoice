@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   Play, Pause, RotateCcw, RotateCw, Volume2, Globe, MapPin,
   Calendar, ChevronRight, Sparkles, BookOpen, Check, Share2, AlertCircle
 } from 'lucide-react'
-import { fetchExhibitByCode, fetchExhibitAudio, reportListeningMetric } from '../api/pipelineApi'
+import { fetchExhibitByCode, fetchExhibitAudio, reportListeningMetric, sendHeartbeat } from '../api/pipelineApi'
 import { LANGUAGES } from '../components/LanguageSelector'
 import './ExhibitVisitorPage.css'
 
@@ -37,6 +37,33 @@ export default function ExhibitVisitorPage() {
   const subtitleContainerRef = useRef(null)
   const sentenceRefs = useRef({})
 
+  // Visitor ID ẩn danh cho phiên truy cập
+  const [visitorId] = useState(() => {
+    let vid = sessionStorage.getItem('wr_visitor_id')
+    if (!vid) {
+      vid = 'v_' + Math.random().toString(36).substring(2, 9)
+      sessionStorage.setItem('wr_visitor_id', vid)
+    }
+    return vid
+  })
+
+  // Gửi heartbeat định kỳ mỗi 8s để Admin đếm người đang online (UC5)
+  useEffect(() => {
+    if (!exhibit) return
+    const isMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent)
+    const deviceType = isMobile ? 'Mobile' : 'Desktop'
+
+    // Gửi heartbeat lần đầu
+    sendHeartbeat(visitorId, exhibit.code, selectedLang, isPlaying, deviceType)
+
+    // Gửi định kỳ mỗi 8 giây
+    const interval = setInterval(() => {
+      sendHeartbeat(visitorId, exhibit.code, selectedLang, isPlaying, deviceType)
+    }, 8000)
+
+    return () => clearInterval(interval)
+  }, [exhibit, selectedLang, isPlaying, visitorId])
+
   // 1. Tải thông tin hiện vật khi `code` thay đổi (≤ 1.5s - NFR-01)
   useEffect(() => {
     let isMounted = true
@@ -49,6 +76,8 @@ export default function ExhibitVisitorPage() {
         if (!isMounted) return
         setExhibit(data)
         setLoading(false)
+        // Luu ma hien vat gan nhat de lan sau khong can quet lai (FR-07)
+        localStorage.setItem('war_remnants_last_code', data.code)
       })
       .catch((err) => {
         if (!isMounted) return
