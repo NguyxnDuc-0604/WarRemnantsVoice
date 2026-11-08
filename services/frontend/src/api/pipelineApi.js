@@ -1,14 +1,46 @@
+
 const API_BASE = '/api/v1'
 
-/**
- * Gọi AI Pipeline: Dịch văn bản + Sinh audio
- * @param {string} text - Văn bản tiếng Việt gốc
- * @param {string[]} languages - Danh sách mã ngôn ngữ đích (vd: ['en', 'fr'])
- * @param {string} exhibitId - ID hiện vật (dùng để đặt tên file audio)
- * @returns {Promise<object>} - Kết quả dịch và đường dẫn audio
- */
+// 4 hiện vật mẫu để thử chức năng QR
+const SAMPLE_EXHIBITS = [
+  {
+    id: 'EX-001',
+    name: 'Trực thăng UH-1',
+    zone: 'Khu trưng bày ngoài trời',
+    period: 'Chiến tranh Việt Nam',
+    original_text:
+      'Đây là mẫu nội dung thuyết minh về trực thăng UH-1. Hiện vật được giới thiệu trong bối cảnh lịch sử chiến tranh Việt Nam. Khi sử dụng chính thức, cần bổ sung thông tin lịch sử đã được kiểm chứng.',
+  },
+  {
+    id: 'EX-002',
+    name: 'Xe tăng M48 Patton',
+    zone: 'Khu trưng bày ngoài trời',
+    period: 'Chiến tranh Việt Nam',
+    original_text:
+      'Đây là mẫu nội dung thuyết minh về xe tăng M48 Patton. Nội dung giới thiệu đặc điểm phương tiện và bối cảnh lịch sử. Cần bổ sung thông tin cụ thể theo hồ sơ hiện vật của bảo tàng.',
+  },
+  {
+    id: 'EX-003',
+    name: 'Pháo quân sự',
+    zone: 'Khu trưng bày ngoài trời',
+    period: 'Trưng bày lịch sử',
+    original_text:
+      'Đây là mẫu nội dung giới thiệu một hiện vật pháo quân sự. Phần thuyết minh sẽ cung cấp thông tin về đặc điểm và vai trò lịch sử của hiện vật sau khi được xác minh.',
+  },
+  {
+    id: 'EX-004',
+    name: 'Máy bay trưng bày',
+    zone: 'Khu trưng bày ngoài trời',
+    period: 'Trưng bày lịch sử',
+    original_text:
+      'Đây là mẫu nội dung thuyết minh về máy bay trưng bày. Khách tham quan có thể tìm hiểu thông tin về phương tiện và bối cảnh lịch sử liên quan.',
+  },
+]
+
+// Dịch văn bản và tạo audio qua AI Pipeline
 export async function processAudio(text, languages, exhibitId = null) {
   const timestamp = Date.now()
+
   const payload = {
     task_id: `task-${timestamp}`,
     exhibit_id: exhibitId || `exhibit-${timestamp}`,
@@ -24,38 +56,59 @@ export async function processAudio(text, languages, exhibitId = null) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || `Lỗi server: ${response.status}`)
+    throw new Error(
+      errorData.detail || `Lỗi server: ${response.status}`
+    )
   }
 
   return response.json()
 }
 
-/**
- * Lấy danh sách tất cả hiện vật mẫu từ backend
- */
+// Lấy hiện vật từ backend; nếu chưa có dữ liệu thì dùng mẫu
 export async function fetchExhibits() {
-  const response = await fetch(`${API_BASE}/exhibits`)
-  if (!response.ok) {
-    throw new Error(`Không thể lấy danh sách hiện vật: ${response.status}`)
+  try {
+    const response = await fetch(`${API_BASE}/exhibits`)
+
+    if (response.ok) {
+      const data = await response.json()
+
+      if (Array.isArray(data) && data.length > 0) {
+        return data
+      }
+    }
+  } catch (error) {
+    console.warn('Không kết nối được API hiện vật, dùng dữ liệu mẫu.')
   }
-  return response.json()
+
+  return SAMPLE_EXHIBITS
 }
 
-/**
- * Lấy chi tiết một hiện vật theo ID (EX-01, EX-02...)
- */
+// Lấy chi tiết hiện vật theo ID
 export async function fetchExhibitById(exhibitId) {
-  const response = await fetch(`${API_BASE}/exhibits/${encodeURIComponent(exhibitId)}`)
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || `Không tìm thấy hiện vật ${exhibitId}`)
+  try {
+    const response = await fetch(
+      `${API_BASE}/exhibits/${encodeURIComponent(exhibitId)}`
+    )
+
+    if (response.ok) {
+      return await response.json()
+    }
+  } catch (error) {
+    console.warn('Không kết nối được API, thử tìm hiện vật mẫu.')
   }
-  return response.json()
+
+  const sample = SAMPLE_EXHIBITS.find(
+    (exhibit) => exhibit.id === exhibitId
+  )
+
+  if (sample) {
+    return sample
+  }
+
+  throw new Error(`Không tìm thấy hiện vật ${exhibitId}`)
 }
 
-/**
- * Kiểm tra backend có hoạt động không
- */
+// Kiểm tra backend
 export async function healthCheck() {
   const response = await fetch('/')
   return response.json()

@@ -1,13 +1,43 @@
+
+import os
+from datetime import datetime
+from typing import List
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from typing import List, Optional
-import os
-import asyncio
+from pydantic import BaseModel, Field
+
+from app.database.connection import engine, SessionLocal, Base
+
+from app.database.models import (
+    PipelineTask,
+    ProcessingStep,
+    Translation,
+    GeneratedAudio,
+    PipelineLog
+)
 
 from app.services.translate_service import translate_text
 from app.services.tts_service import generate_audio
+
+
+# =====================================================
+# 1. CẤU HÌNH ĐƯỜNG DẪN
+# =====================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
+
+
+# =====================================================
+# 2. KHỞI TẠO FASTAPI
+# =====================================================
 
 app = FastAPI(
     title="WarRemnantsVoice - AI Pipeline Service",
@@ -15,21 +45,47 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# Cấu hình CORS để mọi thiết bị (Mobile, PC, Ngrok, Cloudflare Tunnel) đều gọi được API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
-# Đảm bảo thư mục output tồn tại và mount static files
-os.makedirs("./output", exist_ok=True)
-app.mount("/output", StaticFiles(directory="./output"), name="output")
+app.mount(
+    "/output",
+    StaticFiles(directory=OUTPUT_DIR),
+    name="output"
+)
 
-# Danh mục hiện vật bảo tàng mẫu (để quét mã QR hoặc chọn nhanh)
+
+# =====================================================
+# 3. KẾT NỐI DATABASE
+# =====================================================
+
+@app.on_event("startup")
+def startup_event():
+
+    try:
+        Base.metadata.create_all(bind=engine)
+
+        print("===================================")
+        print("AI PIPELINE DATABASE CONNECTED!")
+        print("Database: ai_pipeline_db")
+        print("===================================")
+
+    except Exception as e:
+        print(f"DATABASE CONNECTION ERROR: {e}")
+        raise
+
+
+# =====================================================
+# 4. DANH SÁCH HIỆN VẬT MẪU
+# =====================================================
+
 EXHIBITS_DATABASE = [
+
     {
         "id": "EX-01",
         "name": "Máy bay trực thăng UH-1 'Huey'",
@@ -38,6 +94,7 @@ EXHIBITS_DATABASE = [
         "original_text": "Trực thăng UH-1 Iroquois (biệt danh Huey) được quân đội Hoa Kỳ sử dụng rộng rãi trong Chiến tranh Việt Nam từ năm 1962 đến 1975 với các nhiệm vụ đổ quân, cứu thương và yểm trợ hoả lực không quân.",
         "period": "1962 - 1975"
     },
+
     {
         "id": "EX-02",
         "name": "Xe tăng M48 Patton",
@@ -46,6 +103,7 @@ EXHIBITS_DATABASE = [
         "original_text": "Xe tăng hạng trung M48 Patton là dòng tăng chiến đấu chủ lực được Mỹ viện trợ và triển khai tại chiến trường miền Nam Việt Nam, trang bị pháo nòng 90mm.",
         "period": "1967 - 1972"
     },
+
     {
         "id": "EX-03",
         "name": "Chiến dịch Hồ Chí Minh",
@@ -54,6 +112,7 @@ EXHIBITS_DATABASE = [
         "original_text": "Chiến dịch Hồ Chí Minh lịch sử diễn ra từ ngày 26 đến ngày 30 tháng 4 năm 1975, đỉnh cao của cuộc Tổng tiến công và nổi dậy mùa Xuân 1975, giải phóng hoàn toàn miền Nam, thống nhất đất nước.",
         "period": "4/1975"
     },
+
     {
         "id": "EX-04",
         "name": "Chuồng cọp Côn Đảo (Mô hình phục dựng)",
@@ -62,6 +121,7 @@ EXHIBITS_DATABASE = [
         "original_text": "Mô hình phục dựng Chuồng cọp nhà tù Côn Đảo tái hiện chế độ giam giữ khắc nghiệt đối với các chiến sĩ cách mạng, thể hiện tinh thần kiên cường, bất khuất của những người tù yêu nước.",
         "period": "1940 - 1975"
     },
+
     {
         "id": "EX-05",
         "name": "Pháo tự hành M107 175mm ('Vua chiến trường')",
@@ -70,80 +130,337 @@ EXHIBITS_DATABASE = [
         "original_text": "Pháo tự hành M107 cỡ nòng 175mm từng được mệnh danh là 'Vua chiến trường' của quân đội Mỹ với tầm bắn tối đa lên tới hơn 32 km.",
         "period": "1968 - 1975"
     }
+
 ]
 
-# Schema dữ liệu đầu vào
+
+# =====================================================
+# 5. SCHEMA REQUEST / RESPONSE
+# =====================================================
+
 class TranslationRequest(BaseModel):
+
     task_id: str
     exhibit_id: str
     original_text: str
-    target_languages: List[str] = ["en", "fr"]
 
-# Schema dữ liệu đầu ra
+    target_languages: List[str] = Field(
+        default_factory=lambda: ["en", "fr"]
+    )
+
+
 class TranslationResult(BaseModel):
+
     language: str
     translated_text: str
     audio_file_path: str
 
+
 class TranslationResponse(BaseModel):
+
     task_id: str
     exhibit_id: str
     status: str
     results: List[TranslationResult]
 
+
+# =====================================================
+# 6. HÀM GHI LOG VÀO DATABASE
+# =====================================================
+
+def write_log(db, task_id, message, level="INFO"):
+
+    log = PipelineLog(
+        task_id=task_id,
+        log_level=level,
+        message=message
+    )
+
+    db.add(log)
+    db.commit()
+
+
+# =====================================================
+# 7. HÀM TẠO PROCESSING STEP
+# =====================================================
+
+def create_processing_step(db, task_id, step_name):
+
+    step = ProcessingStep(
+        task_id=task_id,
+        step_name=step_name,
+        status="processing",
+        started_at=datetime.now()
+    )
+
+    db.add(step)
+    db.commit()
+    db.refresh(step)
+
+    return step
+
+
+# =====================================================
+# 8. HEALTH CHECK
+# =====================================================
+
 @app.get("/")
 def health_check():
+
     return {
         "status": "ok",
         "service": "WarRemnantsVoice AI Pipeline Service",
         "version": "2.0.0",
+        "database": "PostgreSQL",
+        "database_name": "ai_pipeline_db",
         "exhibits_count": len(EXHIBITS_DATABASE)
     }
 
+
+# =====================================================
+# 9. LẤY DANH SÁCH HIỆN VẬT
+# =====================================================
+
 @app.get("/api/v1/exhibits")
 def get_exhibits():
-    """Lấy danh sách tất cả hiện vật mẫu phục vụ quét mã QR hoặc chọn nhanh"""
+
     return EXHIBITS_DATABASE
+
+
+# =====================================================
+# 10. LẤY CHI TIẾT HIỆN VẬT THEO ID
+# =====================================================
 
 @app.get("/api/v1/exhibits/{exhibit_id}")
 def get_exhibit_by_id(exhibit_id: str):
-    """Lấy thông tin chi tiết một hiện vật theo mã QR ID"""
+
     normalized_id = exhibit_id.strip().upper()
+
     for exhibit in EXHIBITS_DATABASE:
+
         if exhibit["id"].upper() == normalized_id:
             return exhibit
-    raise HTTPException(status_code=404, detail=f"Không tìm thấy hiện vật có mã '{exhibit_id}'")
 
-@app.post("/api/v1/process-audio", response_model=TranslationResponse)
+    raise HTTPException(
+        status_code=404,
+        detail=f"Không tìm thấy hiện vật có mã '{exhibit_id}'"
+    )
+
+
+# =====================================================
+# 11. API DỊCH THUẬT VÀ TẠO AUDIO
+# =====================================================
+
+@app.post(
+    "/api/v1/process-audio",
+    response_model=TranslationResponse
+)
 async def process_translation_and_tts(payload: TranslationRequest):
-    """
-    Endpoint xử lý Dịch thuật & Sinh Audio đa ngôn ngữ
-    """
+
+    db = SessionLocal()
+
+    task = None
+
     try:
+
+        # -------------------------------------------------
+        # KIỂM TRA DỮ LIỆU ĐẦU VÀO
+        # -------------------------------------------------
+
+        if not payload.target_languages:
+            raise HTTPException(
+                status_code=400,
+                detail="Danh sách ngôn ngữ không được để trống"
+            )
+
+        if not payload.original_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Nội dung hiện vật không được để trống"
+            )
+
+        # -------------------------------------------------
+        # KIỂM TRA TASK ID
+        # -------------------------------------------------
+
+        existing_task = db.query(PipelineTask).filter(
+            PipelineTask.task_id == payload.task_id
+        ).first()
+
+        if existing_task:
+
+            raise HTTPException(
+                status_code=409,
+                detail="Task ID đã tồn tại"
+            )
+
+        # -------------------------------------------------
+        # BƯỚC 1: TẠO TÁC VỤ AI
+        # -------------------------------------------------
+
+        task = PipelineTask(
+            task_id=payload.task_id,
+            exhibit_id=payload.exhibit_id,
+            original_text=payload.original_text,
+            status="processing"
+        )
+
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+
+        write_log(
+            db,
+            payload.task_id,
+            "Bắt đầu xử lý tác vụ AI"
+        )
+
         results = []
-        output_dir = os.path.join(".", "output", payload.exhibit_id)
+
+        # Tạo thư mục lưu audio theo hiện vật
+        output_dir = os.path.join(
+            OUTPUT_DIR,
+            payload.exhibit_id
+        )
+
         os.makedirs(output_dir, exist_ok=True)
 
+        # -------------------------------------------------
+        # BƯỚC 2: DỊCH THUẬT VÀ TẠO AUDIO
+        # -------------------------------------------------
+
         for lang in payload.target_languages:
-            # 1. Dịch thuật & áp dụng Glossary
-            translated_text = translate_text(payload.original_text, lang)
-            
-            # 2. Sinh giọng đọc Audio
-            audio_filename = f"{payload.exhibit_id}_{lang}.mp3"
-            full_disk_path = os.path.join(output_dir, audio_filename)
-            
-            await generate_audio(translated_text, lang, full_disk_path)
-            
-            # URL web chuẩn để trình duyệt truy cập file qua static mount /output
-            web_audio_url = f"/output/{payload.exhibit_id}/{audio_filename}"
-            
-            results.append(
-                TranslationResult(
+
+            # =============================================
+            # 2.1. DỊCH THUẬT
+            # =============================================
+
+            translation_step = create_processing_step(
+                db,
+                payload.task_id,
+                f"TRANSLATION_{lang}"
+            )
+
+            try:
+
+                translated_text = translate_text(
+                    payload.original_text,
+                    lang
+                )
+
+                translation = Translation(
+                    task_id=payload.task_id,
                     language=lang,
-                    translated_text=translated_text,
+                    translated_text=translated_text
+                )
+
+                db.add(translation)
+
+                translation_step.status = "completed"
+                translation_step.completed_at = datetime.now()
+
+                db.commit()
+
+                write_log(
+                    db,
+                    payload.task_id,
+                    f"Dịch thuật thành công: {lang}"
+                )
+
+            except Exception as e:
+
+                translation_step.status = "failed"
+                translation_step.error_message = str(e)
+                translation_step.completed_at = datetime.now()
+
+                db.commit()
+
+                raise
+
+            # =============================================
+            # 2.2. TẠO AUDIO
+            # =============================================
+
+            tts_step = create_processing_step(
+                db,
+                payload.task_id,
+                f"TTS_{lang}"
+            )
+
+            try:
+
+                audio_filename = (
+                    f"{payload.exhibit_id}_{lang}.mp3"
+                )
+
+                full_disk_path = os.path.join(
+                    output_dir,
+                    audio_filename
+                )
+
+                await generate_audio(
+                    translated_text,
+                    lang,
+                    full_disk_path
+                )
+
+                # Đường dẫn audio cho trình duyệt
+                web_audio_url = (
+                    f"/output/{payload.exhibit_id}/"
+                    f"{audio_filename}"
+                )
+
+                audio = GeneratedAudio(
+                    task_id=payload.task_id,
+                    language=lang,
                     audio_file_path=web_audio_url
                 )
-            )
+
+                db.add(audio)
+
+                tts_step.status = "completed"
+                tts_step.completed_at = datetime.now()
+
+                db.commit()
+
+                write_log(
+                    db,
+                    payload.task_id,
+                    f"Tạo audio thành công: {lang}"
+                )
+
+                results.append(
+                    TranslationResult(
+                        language=lang,
+                        translated_text=translated_text,
+                        audio_file_path=web_audio_url
+                    )
+                )
+
+            except Exception as e:
+
+                tts_step.status = "failed"
+                tts_step.error_message = str(e)
+                tts_step.completed_at = datetime.now()
+
+                db.commit()
+
+                raise
+
+        # -------------------------------------------------
+        # BƯỚC 3: HOÀN THÀNH TÁC VỤ
+        # -------------------------------------------------
+
+        task.status = "completed"
+        task.updated_at = datetime.now()
+
+        db.commit()
+
+        write_log(
+            db,
+            payload.task_id,
+            "Hoàn thành toàn bộ pipeline AI"
+        )
 
         return TranslationResponse(
             task_id=payload.task_id,
@@ -152,5 +469,76 @@ async def process_translation_and_tts(payload: TranslationRequest):
             results=results
         )
 
+    # -----------------------------------------------------
+    # XỬ LÝ LỖI
+    # -----------------------------------------------------
+
+    except HTTPException:
+
+        raise
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi xử lý AI: {str(e)}")
+
+        db.rollback()
+
+        if task is not None:
+
+            task = db.query(PipelineTask).filter(
+                PipelineTask.task_id == payload.task_id
+            ).first()
+
+            if task:
+
+                task.status = "failed"
+                task.updated_at = datetime.now()
+
+                db.commit()
+
+                write_log(
+                    db,
+                    payload.task_id,
+                    f"Lỗi xử lý AI: {str(e)}",
+                    "ERROR"
+                )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Lỗi xử lý AI: {str(e)}"
+        )
+
+    finally:
+
+        db.close()
+
+
+# =====================================================
+# 12. CHẠY KIỂM TRA DATABASE
+# =====================================================
+
+@app.get("/api/v1/database/status")
+def database_status():
+
+    db = SessionLocal()
+
+    try:
+
+        from sqlalchemy import text
+
+        db.execute(text("SELECT 1"))
+
+        return {
+            "status": "connected",
+            "database": "ai_pipeline_db",
+            "message": "PostgreSQL hoạt động bình thường"
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database connection failed: {str(e)}"
+        )
+
+    finally:
+
+        db.close()
