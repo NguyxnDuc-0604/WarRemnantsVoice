@@ -19,9 +19,9 @@ jobs:
       - name: Kiểm tra cấu hình Docker Compose
         run: docker compose config
 
-  # Job 2: Kiểm thử các Service Node.js (Gateway / Exhibit)
+  # Job 2: Kiểm thử các Service Node.js (Gateway / Exhibit / Frontend)
   test-node-services:
-    name: Test Node.js Services
+    name: Test Node.js & Frontend Services
     runs-on: ubuntu-latest
     steps:
       - name: Checkout mã nguồn
@@ -32,20 +32,17 @@ jobs:
         with:
           node-version: 20
 
-      # Chạy kiểm thử nếu service đã có package.json
-      - name: Run Exhibit Service Test
+      - name: Test Frontend Build
         run: |
-          if [ -f "services/exhibit-service/package.json" ]; then
-            cd services/exhibit-service
+          if [ -f "services/frontend/package.json" ]; then
+            cd services/frontend
             npm install
-            npm test --if-present
-          else
-            echo "Chưa có package.json trong exhibit-service, bỏ qua test."
+            npm run build
           fi
 
-  # Job 3: Kiểm thử AI Pipeline Service (Python)
+  # Job 3: Kiểm thử AI Pipeline Service (Python) - Thành viên 2
   test-python-ai:
-    name: Test Python AI Pipeline
+    name: Test Python AI Pipeline & Database Separation
     runs-on: ubuntu-latest
     steps:
       - name: Checkout mã nguồn
@@ -56,13 +53,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cài đặt thư viện và chạy test
+      - name: Cài đặt thư viện AI Pipeline
         run: |
-          if [ -f "services/ai-pipeline-service/requirements.txt" ]; then
-            cd services/ai-pipeline-service
-            python -m pip install --upgrade pip
-            pip install -r requirements.txt
-            pytest --maxfail=1 --disable-warnings -q || echo "Chưa có file test pytest."
-          else
-            echo "Chưa có requirements.txt, bỏ qua."
-          fi
+          cd services/ai-pipeline-service
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Chạy Unit Tests AI Pipeline (pytest)
+        run: |
+          cd services/ai-pipeline-service
+          pytest -v --disable-warnings

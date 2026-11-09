@@ -4,6 +4,7 @@ title [WarRemnantsVoice] - Frontend React Vite (Port 5173)
 echo ==========================================================
 echo  🌐 KHOI DONG FRONTEND REACT + VITE (PORT 5173)
 echo ==========================================================
+set "PATH=C:\Program Files\nodejs;%PATH%"
 cd /d "%~dp0services\frontend"
 
 if not exist "node_modules" (

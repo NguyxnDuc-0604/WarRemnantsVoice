@@ -4,6 +4,7 @@ title [WarRemnantsVoice] - Backend FastAPI (Port 8000)
 echo ==========================================================
 echo  🎖️ KHOI DONG BACKEND AI PIPELINE SERVICE (PORT 8000)
 echo ==========================================================
+set "PATH=C:\Users\khoav\AppData\Local\Python\bin;C:\Users\khoav\AppData\Local\Python\pythoncore-3.14-64\Scripts;%PATH%"
 cd /d "%~dp0services\ai-pipeline-service"
 
 set "PY_CMD=python"

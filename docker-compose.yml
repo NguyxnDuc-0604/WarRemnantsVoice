@@ -1,32 +1,94 @@
-services:
-  # Database lưu trữ thông tin hiện vật, bản dịch & thống kê (Theo PRD)
-  postgres:
+﻿services:
+  # ==============================================================
+  # DATABASE PER SERVICE (Microservices - Moi service co DB rieng)
+  # ==============================================================
+
+  # DB rieng cho Exhibit Service (TV khac phu trach)
+  # Bang: exhibit, content_source, tour_route
+  exhibit_db:
     image: postgres:16-alpine
-    container_name: museum_postgres
+    container_name: museum_exhibit_db
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password123
-      POSTGRES_DB: museum_db
+      POSTGRES_USER: exhibit_user
+      POSTGRES_PASSWORD: exhibit_pass
+      POSTGRES_DB: exhibit_db
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./database/init_database.sql:/docker-entrypoint-initdb.d/01_init.sql # Tự động tạo 7 bảng & nạp dữ liệu mẫu
+      - exhibit_db_data:/var/lib/postgresql/data
 
-  # Message Queue điều phối pipeline xử lý audio
+  # DB rieng cho AI Pipeline Service (Thanh vien 2 phu trach)
+  # Bang: supported_language, glossary, localization, audio_media, pipeline_job
+  pipeline_db:
+    image: postgres:16-alpine
+    container_name: museum_pipeline_db
+    restart: always
+    environment:
+      POSTGRES_USER: pipeline_user
+      POSTGRES_PASSWORD: pipeline_pass
+      POSTGRES_DB: pipeline_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - pipeline_db_data:/var/lib/postgresql/data
+      - ./database/schemas/02_pipeline_service.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./database/seeds/02_pipeline_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql
+
+  # DB rieng cho Gateway Service (TV khac phu trach)
+  # Bang: listening_metric, active_session
+  gateway_db:
+    image: postgres:16-alpine
+    container_name: museum_gateway_db
+    restart: always
+    environment:
+      POSTGRES_USER: gateway_user
+      POSTGRES_PASSWORD: gateway_pass
+      POSTGRES_DB: gateway_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - gateway_db_data:/var/lib/postgresql/data
+
+  # ==============================================================
+  # AI PIPELINE SERVICE (Thanh vien 2)
+  # ==============================================================
+  ai-pipeline-service:
+    build:
+      context: ./services/ai-pipeline-service
+      dockerfile: Dockerfile
+    container_name: museum_ai_pipeline
+    restart: always
+    environment:
+      PIPELINE_DATABASE_URL: postgresql://pipeline_user:pipeline_pass@pipeline_db:5432/pipeline_db
+      DATABASE_URL: postgresql://exhibit_user:exhibit_pass@exhibit_db:5432/exhibit_db
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/ai-pipeline-service/output:/app/output
+    depends_on:
+      - pipeline_db
+      - exhibit_db
+      - rabbitmq
+
+  # ==============================================================
+  # MESSAGE QUEUE (Thanh vien 2 - Celery Task Worker)
+  # ==============================================================
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: museum_rabbitmq
     restart: always
     ports:
-      - "5672:5672"   # Cổng kết nối code (AMQP)
-      - "15672:15672" # Giao diện web quản lý RabbitMQ
+      - "5672:5672"
+      - "15672:15672"
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
 
-  # Object Storage lưu trữ file âm thanh các thứ tiếng
+  # ==============================================================
+  # OBJECT STORAGE - Luu file am thanh MP3
+  # ==============================================================
   minio:
     image: cgr.dev/chainguard/minio:latest
     container_name: museum_minio
@@ -36,11 +98,13 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadminpassword
     ports:
-      - "9000:9000" # S3 API endpoint
-      - "9001:9001" # Giao diện Web MinIO Console
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - minio-data:/data
 
 volumes:
-  postgres-data:
+  exhibit_db_data:
+  pipeline_db_data:
+  gateway_db_data:
   minio-data:

@@ -42,3 +42,4 @@ postgres-data/
 *.db
 *.sqlite
 *.sqlite3
+.pytest_cache/
