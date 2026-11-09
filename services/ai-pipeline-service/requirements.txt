@@ -1,12 +1,13 @@
-pika==1.3.2
-edge-tts==6.1.9
-requests==2.31.0
-python-dotenv==1.0.1
-pydantic
-fastapi
-uvicorn
-pika
-edge-tts
-requests
-python-dotenv
-pydantic
+# WarRemnantsVoice - AI Pipeline & Processing Service Dependencies
+# Thành viên 2: AI & Pipeline Processing Services
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+sqlalchemy>=2.0.0
+pydantic>=2.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+edge-tts>=6.1.9
+deep-translator>=1.11.4
+pika>=1.3.2
+pytest>=7.4.0
+httpx>=0.24.0

@@ -13,34 +13,51 @@ import asyncio
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from app.db.database import engine, Base, SessionLocal, get_db
-from app.db.models import (
-    Exhibit,
-    ContentSource,
+# =================================================================
+# DATABASE LAYER -- pipeline_db (Database rieng cua AI Pipeline Service)
+# TV2 so huu: supported_language, glossary, localization, audio_media, pipeline_job
+# =================================================================
+from app.database.connection import engine, Base, SessionLocal, get_db
+from app.database.models import (
+    SupportedLanguage,
+    Glossary,
     Localization,
     AudioMedia,
-    TourRoute,
-    Glossary,
-    ListeningMetric,
-    SupportedLanguage
+    PipelineJob,
 )
-from app.db.seed import seed_database
+from app.database.seed import seed_pipeline_database
 from app.services.translate_service import translate_text
 from app.services.tts_service import generate_audio
 from app.db.utility import list_table_names, fetch_table_rows
 
+# Legacy models (tam thoi) -- can xoa khi exhibit-service tach DB rieng
+from app.db.database import engine as _legacy_engine, Base as _LegacyBase, SessionLocal as _LegacySessionLocal
+from app.db.models import Exhibit, ContentSource, TourRoute, ListeningMetric
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Khởi tạo bảng CSDL và nạp dữ liệu mẫu theo PRD nếu chưa có
+    # Khoi tao bang CSDL pipeline_db va seed du lieu mac dinh (Thanh vien 2)
     try:
         Base.metadata.create_all(bind=engine)
         db = SessionLocal()
         try:
-            seed_database(db)
+            seed_pipeline_database(db)
         finally:
             db.close()
     except Exception as err:
-        print(f"[DB-INIT-WARN] Loi khoi tao CSDL: {err}")
+        print(f"[pipeline_db][WARN] Loi khoi tao pipeline_db: {err}")
+
+    # Khoi tao legacy DB (exhibit, content_source, ...) -- tam thoi
+    try:
+        _LegacyBase.metadata.create_all(bind=_legacy_engine)
+        from app.db.seed import seed_database as _legacy_seed
+        legacy_db = _LegacySessionLocal()
+        try:
+            _legacy_seed(legacy_db)
+        finally:
+            legacy_db.close()
+    except Exception as err:
+        print(f"[legacy_db][WARN] Loi khoi tao legacy DB: {err}")
     yield
 
 app = FastAPI(
@@ -176,14 +193,18 @@ class UpdateExhibitRequest(BaseModel):
 @app.get("/")
 def health_check(db: Session = Depends(get_db)):
     clean_expired_sessions()
-    exhibits_count = db.query(Exhibit).filter(Exhibit.is_active == True).count()
+    languages_count = db.query(SupportedLanguage).filter(SupportedLanguage.is_active == True).count()
+    localizations_count = db.query(Localization).count()
+    jobs_count = db.query(PipelineJob).count()
     return {
         "status": "ok",
-        "service": "WarRemnantsVoice Exhibit & AI Service",
+        "service": "WarRemnantsVoice AI Pipeline Service",
         "version": "2.4.0",
-        "database": "CONNECTED",
+        "database": "pipeline_db (CONNECTED)",
         "active_visitors_online": len(ACTIVE_SESSIONS),
-        "exhibits_count": exhibits_count
+        "supported_languages_count": languages_count,
+        "localizations_count": localizations_count,
+        "pipeline_jobs_count": jobs_count
     }
 
 # ====================================================================
@@ -852,3 +873,74 @@ def get_tunnel_url(_: None = Depends(_require_admin)):
         raise HTTPException(status_code=500,
                             detail="CLOUDFLARE_TUNNEL_URL chua duoc cau hinh tren server")
     return {"tunnel_url": tunnel_url}
+
+# ====================================================================
+# 🎙️ ASR & NLP SERVICE ENDPOINTS (Thành viên 2)
+# ====================================================================
+from app.services.asr_service import normalize_text_nlp, transcribe_audio_file
+
+class NLPNormalizeRequest(BaseModel):
+    text: str
+
+class CreatePipelineJobRequest(BaseModel):
+    exhibit_id: str
+    exhibit_code: str
+    target_languages: List[str] = ["en", "fr"]
+    priority: Optional[int] = 5
+
+@app.post("/api/v1/ai/nlp/normalize")
+def nlp_normalize_endpoint(payload: NLPNormalizeRequest):
+    """Chuẩn hóa câu từ và ngữ pháp thuyết minh (ASR/NLP Service)"""
+    cleaned = normalize_text_nlp(payload.text)
+    return {
+        "status": "success",
+        "original_text": payload.text,
+        "normalized_text": cleaned
+    }
+
+# ====================================================================
+# ⚙️ ASYNC PIPELINE JOBS & TASK WORKER TRACKING (Thành viên 2)
+# ====================================================================
+@app.post("/api/v1/pipeline/jobs")
+def create_pipeline_job(payload: CreatePipelineJobRequest, db: Session = Depends(get_db)):
+    """Đăng ký job xử lý pipeline bất đồng bộ vào pipeline_db"""
+    job_uuid = str(uuid.uuid4())
+    celery_task_id = f"task-{uuid.uuid4().hex[:12]}"
+
+    new_job = PipelineJob(
+        id=job_uuid,
+        task_id=celery_task_id,
+        exhibit_id=payload.exhibit_id,
+        exhibit_code=payload.exhibit_code.strip().upper(),
+        target_languages=payload.target_languages,
+        status="pending",
+        priority=payload.priority or 5,
+        created_at=datetime.utcnow()
+    )
+    db.add(new_job)
+    db.commit()
+    db.refresh(new_job)
+    return {
+        "status": "queued",
+        "message": f"Job cho hiện vật {new_job.exhibit_code} đã được đưa vào hàng đợi",
+        "job": new_job.to_dict()
+    }
+
+@app.get("/api/v1/pipeline/jobs")
+def list_pipeline_jobs(limit: int = 50, db: Session = Depends(get_db)):
+    """Lấy danh sách các jobs trong pipeline_db"""
+    jobs = db.query(PipelineJob).order_by(PipelineJob.created_at.desc()).limit(limit).all()
+    return {
+        "total": len(jobs),
+        "jobs": [j.to_dict() for j in jobs]
+    }
+
+@app.get("/api/v1/pipeline/jobs/{job_id}")
+def get_pipeline_job(job_id: str, db: Session = Depends(get_db)):
+    """Kiểm tra tiến độ job theo task_id hoặc id"""
+    job = db.query(PipelineJob).filter(
+        (PipelineJob.id == job_id) | (PipelineJob.task_id == job_id)
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Không tìm thấy Pipeline Job")
+    return job.to_dict()
