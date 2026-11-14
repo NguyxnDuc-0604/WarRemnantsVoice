@@ -1,117 +1,52 @@
-# 📱 Hướng Dẫn Truy Cập Nhiều Điện Thoại Cùng Lúc (Không Chung Mạng)
+# 📱 Giải Pháp Truy Cập Tức Thì Cho Điện Thoại (Không Nhập IP / Password)
 
-Tài liệu này hướng dẫn chi tiết cách chia sẻ ứng dụng **WarRemnantsVoice** ra Internet để **nhiều người dùng điện thoại sử dụng 4G/5G hoặc mạng WiFi khác cùng lúc** có thể truy cập, quét mã QR và nghe thuyết minh bảo tàng.
+## ❌ NGUYÊN NHÂN GÂY RA HIỆN TƯỢNG BẮT NHẬP "IP PUBLIC / TUNNEL PASSWORD"
 
----
+Khi sử dụng công cụ **LocalTunnel** (`localtunnel / loca.lt`), dịch vụ này có một cơ chế chống lạm dụng (anti-abuse reminder) yêu cầu người truy cập lần đầu phải nhập địa chỉ IP Public của máy chủ thì mới cho vào web.
 
-## ⚠️ Điểm Mấu Chốt Về Camera & Quét Mã QR
-
-> **LƯU Ý CỰC KỲ QUAN TRỌNG:**
-> Các trình duyệt hiện đại trên điện thoại (**iOS Safari**, **Android Chrome**, Samsung Internet...) **BẮT BUỘC kết nối phải có HTTPS** (hoặc `localhost`) thì mới cho phép cấp quyền mở **Camera**.
-> 
-> Nếu chỉ mở qua `http://192.168.x.x` thông thường, trình duyệt điện thoại sẽ chặn không cho mở Camera để quét mã QR!
-> 
-> 👉 Do đó, các giải pháp Tunnel có sẵn **HTTPS miễn phí** dưới đây là cách hoàn hảo nhất: vừa mở được từ xa qua 4G/5G, vừa cho phép quét mã QR bằng camera trơn tru!
+👉 **Đối với du khách bảo tàng:** Đây là một rào cản rất lớn, vì khách chỉ muốn quét mã QR là nghe được ngay, không ai muốn và không ai biết IP Public để nhập!
 
 ---
 
-## 🏆 CÁCH 1 (Khuyên Dùng Nhất): Dùng Cloudflare Tunnel (Miễn Phí 100%, Không Cần Tài Khoản)
+## ✅ GIẢI PHÁP TRIỆT ĐỂ: SỬ DỤNG CLOUDFLARE TUNNEL (ĐÃ TẢI SẴN TRONG DỰ ÁN)
 
-**Cloudflare Tunnel (`cloudflared`)** là giải pháp tốt nhất hiện nay:
-- ✅ Hoàn toàn miễn phí, không giới hạn thời gian hay số lượng thiết bị truy cập.
-- ✅ Cấp sẵn tên miền **HTTPS** bảo mật chuẩn quốc tế.
-- ✅ **Không cần đăng ký tài khoản**, không cần mở port modem.
-- ✅ 10, 50 hay 100 điện thoại truy cập cùng một lúc vẫn mượt mà.
+Tôi đã tải sẵn tệp tin thực thi chính thức [`cloudflared.exe`](file:///d:/VS%20Code/war-remnants-voice/cloudflared.exe) trực tiếp vào thư mục dự án của bạn.
 
-### Các bước thực hiện:
-
-#### Bước 1: Cài đặt Cloudflared (Chỉ làm 1 lần)
-Mở **PowerShell** trên máy tính và chạy lệnh:
-```powershell
-winget install --id Cloudflare.cloudflared
-```
-*(Hoặc tải file `cloudflared-windows-amd64.exe` trực tiếp từ trang chính thức của Cloudflare và đổi tên thành `cloudflared.exe` bỏ vào thư mục dự án).*
-
-#### Bước 2: Bật Tunnel chia sẻ ứng dụng
-Sau khi đã bật Backend và Frontend trên máy, mở terminal mới và chạy:
-```powershell
-cloudflared tunnel --url http://localhost:5173
-```
-*(Hoặc chỉ cần nhấp đúp chuột vào file `start_public_tunnel.bat` có sẵn trong thư mục dự án).*
-
-#### Bước 3: Lấy link gửi cho điện thoại
-Trên màn hình console sẽ hiện ra đường link dạng:
-```
-+--------------------------------------------------------------------------------------------+
-|  Your quick Tunnel has been created! Visit it at (it may take some time to be reachable):  |
-|  https://ancient-sample-voices.trycloudflare.com                                           |
-+--------------------------------------------------------------------------------------------+
-```
-
-👉 **Gửi link `https://xxxx.trycloudflare.com` này cho bất kỳ ai!**
-- Điện thoại dùng 4G, 5G hay WiFi bất kỳ đều mở được ngay.
-- Trình duyệt sẽ hỏi: *"Cho phép trang web sử dụng Camera?"* → Chọn **Cho phép (Allow)**.
-- Đưa camera lên quét mã QR tại hiện vật (hoặc trên màn hình máy tính) để nghe thuyết minh!
+### Ưu điểm vượt trội của Cloudflare Tunnel:
+* ✅ **MỞ THẲNG 100%:** Khách dùng Camera điện thoại hoặc Zalo quét mã QR là **vào thẳng bài thuyết minh ngay lập tức**.
+* ✅ **TUYỆT ĐỐI KHÔNG BẮT NHẬP GÌ:** Không hỏi IP, không hỏi Password, không có màn hình cảnh báo hay xác nhận trung gian.
+* ✅ **CÓ SẴN HTTPS CHUẨN:** Đảm bảo âm thanh và trình phát PWA chạy mượt mà trên cả iOS Safari và Android Chrome.
+* ✅ **HOÀN TOÀN MIỄN PHÍ & KHÔNG GIỚI HẠN:** Bao nhiêu điện thoại dùng 4G/5G cùng quét một lúc cũng được.
 
 ---
 
-## ⚡ CÁCH 2: Dùng LocalTunnel (Có Sẵn Node.js, Không Cần Cài Thêm Gì)
+## 🚀 QUY TRÌNH THỰC HIỆN 3 BƯỚC ĐƠN GIẢN
 
-Vì máy tính bạn đã cài sẵn Node.js (`npx`), bạn có thể dùng ngay công cụ này:
+### Bước 1: Khởi động Backend & Frontend
+* Bật [`start_backend.bat`](file:///d:/VS%20Code/war-remnants-voice/start_backend.bat) (Port 8000)
+* Bật [`start_frontend.bat`](file:///d:/VS%20Code/war-remnants-voice/start_frontend.bat) (Port 5173)
 
-### Các bước thực hiện:
-Mở terminal trên máy tính và gõ:
-```bash
-npx localtunnel --port 5173
+### Bước 2: Bật Cloudflare Tunnel
+Nhấp đúp chuột vào file:
+👉 [`start_public_tunnel.bat`](file:///d:/VS%20Code/war-remnants-voice/start_public_tunnel.bat)
+
+Chờ khoảng 5–10 giây, trên màn hình console sẽ hiện ra đường link dạng:
+```text
+https://something-random.trycloudflare.com
 ```
+*(Copy dòng link này lại)*
 
-Màn hình sẽ hiển thị:
-```
-your url is: https://bright-tiger-42.loca.lt
-```
+### Bước 3: Cập nhật đường link vào Bảng Mã QR trên máy tính
+1. Mở trình duyệt máy tính vào: `http://localhost:5173/qr-stands`
+2. Bấm nút **"🔗 Dán Link Cloudflare Tunnel (Cho điện thoại 4G/5G)"**.
+3. Dán đường link `https://xxx.trycloudflare.com` vừa copy ở Bước 2 vào ô $\rightarrow$ Bấm **Áp dụng**.
+4. Toàn bộ các mã QR trên màn hình máy tính sẽ tự động cập nhật ngay lập tức theo link này.
 
-### Cách mở trên điện thoại:
-1. Mở link `https://xxxx.loca.lt` trên trình duyệt điện thoại.
-2. Lần đầu tiên mở, LocalTunnel sẽ yêu cầu xác nhận một mã **Tunnel Password**.
-3. Để lấy mã này:
-   - Trên máy tính, mở trang: `https://loca.lt/mytunnelpassword`
-   - Copy dãy số IP hiện ra (ví dụ: `113.161.45.22`).
-   - Dán số này vào ô trên điện thoại và bấm **Submit**.
-4. Toàn bộ giao diện WarRemnantsVoice sẽ hiện ra và sử dụng bình thường.
-
----
-
-## 🔒 CÁCH 3: Dùng Ngrok
-
-Nếu bạn đã quen thuộc với Ngrok:
-```bash
-ngrok http 5173
-```
-Ngrok sẽ cung cấp đường link HTTPS (ví dụ: `https://abc-123.ngrok-free.app`). Chia sẻ link này cho các điện thoại cùng truy cập.
-
----
-
-## 📶 CÁCH 4: Truy Cập Khi Chung Mạng WiFi (Mạng Nội Bộ LAN)
-
-Nếu tất cả các thiết bị cùng kết nối vào 1 mạng WiFi (ví dụ WiFi văn phòng, bảo tàng, hoặc nhà):
-
-1. Mở PowerShell trên máy tính gõ: `ipconfig`
-2. Tìm dòng `IPv4 Address`, ví dụ: `192.168.1.50`
-3. Trên điện thoại mở:
-   - `http://192.168.1.50:5173`
-4. *Lưu ý về Camera khi dùng HTTP nội bộ:*
-   - Trên Google Chrome Android: Nếu camera bị chặn do không có HTTPS, vào `chrome://flags` trên điện thoại → Tìm `unsafely-treat-insecure-origin-as-secure` → Nhập `http://192.168.1.50:5173` → Chọn **Enable** → Bấm **Relaunch**.
-   - Hoặc đơn giản là dùng tính năng **"Tải ảnh mã QR"** có sẵn trên giao diện.
-
----
-
-## 🎯 Tổng Kết Quy Trình Chạy Cho Buổi Demo / Thuyết Trình
-
-Khi cần demo cho nhiều người cùng trải nghiệm trên điện thoại:
-
-1. **Khởi động Backend:** Chạy `start_backend.bat` (Cửa sổ 1).
-2. **Khởi động Frontend:** Chạy `start_frontend.bat` (Cửa sổ 2).
-3. **Mở Chia Sẻ Public:** Chạy `start_public_tunnel.bat` (Cửa sổ 3).
-4. Copy đường link HTTPS tạo được (ví dụ `https://xxx.trycloudflare.com`) gửi vào Zalo / Messenger cho mọi người.
-5. Mở trang `http://localhost:5173/qr-codes` trên màn hình máy tính / máy chiếu để hiển thị các bảng mã QR hiện vật mẫu.
-6. Mọi người cầm điện thoại lên, mở link, cấp quyền camera và quét trực tiếp lên màn hình máy chiếu!
+### Bước 4: Kiểm thử trên điện thoại (4G / 5G)
+1. Cầm điện thoại (dùng 4G/5G hoặc WiFi bất kỳ).
+2. Bật **Camera chụp ảnh của điện thoại** hoặc **Zalo**.
+3. Lia camera vào mã QR của hiện vật trên màn hình máy tính.
+4. Chạm vào liên kết:
+   * **Kết quả:** Điện thoại mở thẳng trang thuyết minh của hiện vật!
+   * **Tuyệt đối không có bất kỳ màn hình hỏi IP hay mật khẩu nào!**
+   * Bấm nút **"▶ Chạm để bắt đầu nghe thuyết minh"** để nghe giọng đọc AI và xem phụ đề chạy chữ song ngữ.

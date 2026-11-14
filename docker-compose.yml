@@ -1,5 +1,5 @@
 services:
-  # Database lưu trữ thông tin hiện vật & bản dịch đa ngôn ngữ
+  # Database lưu trữ thông tin hiện vật, bản dịch & thống kê (Theo PRD)
   postgres:
     image: postgres:16-alpine
     container_name: museum_postgres
@@ -12,8 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # Tự động nạp toàn bộ cấu trúc bảng và dữ liệu mẫu khi khởi động lần đầu
-      - ./database/schema_all_in_one.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+      - ./database/init_database.sql:/docker-entrypoint-initdb.d/01_init.sql # Tự động tạo 7 bảng & nạp dữ liệu mẫu
 
   # Message Queue điều phối pipeline xử lý audio
   rabbitmq:
@@ -21,7 +20,7 @@ services:
     container_name: museum_rabbitmq
     restart: always
     ports:
-      - "5672:5672" # Cổng kết nối code (AMQP)
+      - "5672:5672"   # Cổng kết nối code (AMQP)
       - "15672:15672" # Giao diện web quản lý RabbitMQ
     environment:
       RABBITMQ_DEFAULT_USER: guest

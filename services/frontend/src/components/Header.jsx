@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Headphones, BookOpen, QrCode, Globe, Grid } from 'lucide-react'
+import { Headphones, BookOpen, QrCode, Globe, ShieldCheck } from 'lucide-react'
 import './Header.css'
 
 export default function Header() {
@@ -30,11 +30,21 @@ export default function Header() {
           </Link>
 
           <Link
-            to="/qr-scan"
-            className={`header__nav-link header__nav-link--highlight ${location.pathname === '/qr-scan' ? 'header__nav-link--active' : ''}`}
+            to="/qr-stands"
+            className={`header__nav-link ${location.pathname.startsWith('/qr') ? 'header__nav-link--active' : ''}`}
           >
             <QrCode size={15} />
-            <span className="nav-label">Quét Mã QR</span>
+            <span className="nav-label">Biển Mã QR</span>
+          </Link>
+
+          {/* Nút Quản trị: Chỉ hiển thị trên Desktop cho cán bộ, ẩn trên điện thoại của du khách */}
+          <Link
+            to="/admin"
+            className={`header__nav-link admin-desktop-only ${location.pathname === '/admin' ? 'header__nav-link--active' : ''}`}
+            title="Dành cho cán bộ quản lý bảo tàng"
+          >
+            <ShieldCheck size={15} />
+            <span className="nav-label">Quản trị (Admin)</span>
           </Link>
 
           <Link
@@ -42,22 +52,14 @@ export default function Header() {
             className={`header__nav-link ${location.pathname === '/translate' ? 'header__nav-link--active' : ''}`}
           >
             <Globe size={15} />
-            <span className="nav-label">Thuyết minh</span>
-          </Link>
-
-          <Link
-            to="/qr-codes"
-            className={`header__nav-link ${location.pathname === '/qr-codes' ? 'header__nav-link--active' : ''}`}
-          >
-            <Grid size={15} />
-            <span className="nav-label">Mã QR Mẫu</span>
+            <span className="nav-label">Công cụ Dịch</span>
           </Link>
         </nav>
 
         {/* Status badge */}
         <div className="header__status">
           <span className="header__status-dot" />
-          <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>AI Online</span>
+          <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>AI Pipeline Active</span>
         </div>
       </div>
     </header>

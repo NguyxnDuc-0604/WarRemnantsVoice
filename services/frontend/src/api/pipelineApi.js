@@ -1,43 +1,159 @@
+﻿const API_BASE = '/api/v1'
 
-const API_BASE = '/api/v1'
+/**
+ * Lấy danh sách tất cả hiện vật từ backend
+ */
+export async function fetchExhibits() {
+  const response = await fetch(`${API_BASE}/exhibits`)
+  if (!response.ok) {
+    throw new Error(`Không thể lấy danh sách hiện vật: ${response.status}`)
+  }
+  return response.json()
+}
 
-// 4 hiện vật mẫu để thử chức năng QR
-const SAMPLE_EXHIBITS = [
-  {
-    id: 'EX-001',
-    name: 'Trực thăng UH-1',
-    zone: 'Khu trưng bày ngoài trời',
-    period: 'Chiến tranh Việt Nam',
-    original_text:
-      'Đây là mẫu nội dung thuyết minh về trực thăng UH-1. Hiện vật được giới thiệu trong bối cảnh lịch sử chiến tranh Việt Nam. Khi sử dụng chính thức, cần bổ sung thông tin lịch sử đã được kiểm chứng.',
-  },
-  {
-    id: 'EX-002',
-    name: 'Xe tăng M48 Patton',
-    zone: 'Khu trưng bày ngoài trời',
-    period: 'Chiến tranh Việt Nam',
-    original_text:
-      'Đây là mẫu nội dung thuyết minh về xe tăng M48 Patton. Nội dung giới thiệu đặc điểm phương tiện và bối cảnh lịch sử. Cần bổ sung thông tin cụ thể theo hồ sơ hiện vật của bảo tàng.',
-  },
-  {
-    id: 'EX-003',
-    name: 'Pháo quân sự',
-    zone: 'Khu trưng bày ngoài trời',
-    period: 'Trưng bày lịch sử',
-    original_text:
-      'Đây là mẫu nội dung giới thiệu một hiện vật pháo quân sự. Phần thuyết minh sẽ cung cấp thông tin về đặc điểm và vai trò lịch sử của hiện vật sau khi được xác minh.',
-  },
-  {
-    id: 'EX-004',
-    name: 'Máy bay trưng bày',
-    zone: 'Khu trưng bày ngoài trời',
-    period: 'Trưng bày lịch sử',
-    original_text:
-      'Đây là mẫu nội dung thuyết minh về máy bay trưng bày. Khách tham quan có thể tìm hiểu thông tin về phương tiện và bối cảnh lịch sử liên quan.',
-  },
-]
+/**
+ * Lấy chi tiết một hiện vật theo mã code (UH1-BELL, T54-390, EX-01...)
+ */
+export async function fetchExhibitByCode(identifier) {
+  const response = await fetch(`${API_BASE}/exhibits/${encodeURIComponent(identifier)}`)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Không tìm thấy hiện vật '${identifier}'`)
+  }
+  return response.json()
+}
 
-// Dịch văn bản và tạo audio qua AI Pipeline
+/**
+ * Lấy bản dịch, file audio MP3 và mốc thời gian phụ đề JSON cho một hiện vật
+ */
+export async function fetchExhibitAudio(identifier, lang = 'en') {
+  const response = await fetch(`${API_BASE}/exhibits/${encodeURIComponent(identifier)}/audio?lang=${encodeURIComponent(lang)}`)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.detail || `Lỗi tải âm thanh thuyết minh (${response.status})`)
+  }
+  return response.json()
+}
+
+/**
+ * Gửi tín hiệu Heartbeat ping để thống kê người đang online (CCU)
+ */
+export async function sendHeartbeat(visitorId, exhibitCode = 'HOME', languageCode = 'en', isPlaying = false, deviceType = 'Mobile') {
+  try {
+    const response = await fetch(`${API_BASE}/metrics/heartbeat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        visitor_id: visitorId,
+        exhibit_code: exhibitCode,
+        language_code: languageCode,
+        is_playing: isPlaying,
+        device_type: deviceType,
+      })
+    })
+    return response.json()
+  } catch (e) {
+    // Heartbeat chạy ngầm, không ngắt luồng UI
+    return null
+  }
+}
+
+/**
+ * Báo cáo thống kê lượt nghe ẩn danh (FR-20, BR-15)
+ */
+export async function reportListeningMetric(exhibitCode, langCode, duration, triggerType = 'QR_CODE') {
+  try {
+    await fetch(`${API_BASE}/metrics/listen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        exhibit_code: exhibitCode,
+        language_code: langCode,
+        listened_duration: Math.round(duration),
+        trigger_type: triggerType
+      })
+    })
+  } catch (e) {
+    console.warn('Không thể ghi nhận metric:', e)
+  }
+}
+
+/**
+ * Lấy toàn bộ số liệu thống kê thời gian thực cho trang Admin Dashboard
+ */
+export async function fetchAdminStats() {
+  const response = await fetch(`${API_BASE}/admin/dashboard-stats`)
+  if (!response.ok) {
+    throw new Error(`Lỗi tải dữ liệu thống kê Admin: ${response.status}`)
+  }
+  return response.json()
+}
+
+/**
+ * Admin: Thêm hiện vật mới và tự động tạo mã QR
+ */
+export async function createExhibit(data) {
+  const response = await fetch(`${API_BASE}/admin/exhibits`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.detail || 'Không thể tạo hiện vật mới.')
+  }
+  return response.json()
+}
+
+/**
+ * Admin: Xóa hiện vật
+ */
+/**
+ * Admin: Cáº­p nháº­t URL áº£nh Ä‘áº¡i diá»‡n cho hiá»‡n váº­t
+ */
+export async function updateExhibitThumbnail(code, thumbnailUrl) {
+  const response = await fetch(`${API_BASE}/admin/exhibits/${encodeURIComponent(code)}/thumbnail`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ thumbnail_url: thumbnailUrl })
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.detail || 'KhÃ´ng thá»ƒ cáº­p nháº­t áº£nh hiá»‡n váº­t.')
+  }
+  return response.json()
+}
+
+/**
+ * Admin: Cáº­p nháº­t thÃ´ng tin chi tiáº¿t hiá»‡n váº­t
+ */
+export async function updateExhibit(code, data) {
+  const response = await fetch(`${API_BASE}/admin/exhibits/${encodeURIComponent(code)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.detail || 'KhÃ´ng thá»ƒ cáº­p nháº­t hiá»‡n váº­t.')
+  }
+  return response.json()
+}
+
+export async function deleteExhibit(code) {
+  const response = await fetch(`${API_BASE}/admin/exhibits/${encodeURIComponent(code)}`, {
+    method: 'DELETE',
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.detail || 'Không thể xóa hiện vật.')
+  }
+  return response.json()
+}
+
+/**
+ * Gọi AI Pipeline tự do: Dịch văn bản + Sinh audio
+ */
 export async function processAudio(text, languages, exhibitId = null) {
   const timestamp = Date.now()
 
@@ -64,37 +180,20 @@ export async function processAudio(text, languages, exhibitId = null) {
   return response.json()
 }
 
-// Lấy hiện vật từ backend; nếu chưa có dữ liệu thì dùng mẫu
-export async function fetchExhibits() {
-  try {
-    const response = await fetch(`${API_BASE}/exhibits`)
+export const fetchExhibitById = fetchExhibitByCode
 
-    if (response.ok) {
-      const data = await response.json()
-
-      if (Array.isArray(data) && data.length > 0) {
-        return data
-      }
-    }
-  } catch (error) {
-    console.warn('Không kết nối được API hiện vật, dùng dữ liệu mẫu.')
-  }
-
-  return SAMPLE_EXHIBITS
+export async function healthCheck() {
+  const response = await fetch('/')
+  return response.json()
 }
 
-// Lấy chi tiết hiện vật theo ID
-export async function fetchExhibitById(exhibitId) {
-  try {
-    const response = await fetch(
-      `${API_BASE}/exhibits/${encodeURIComponent(exhibitId)}`
-    )
-
-    if (response.ok) {
-      return await response.json()
-    }
-  } catch (error) {
-    console.warn('Không kết nối được API, thử tìm hiện vật mẫu.')
+/**
+ * Admin: Lấy toàn bộ schema và dữ liệu 7 bảng CSDL theo chuẩn PRD
+ */
+export async function fetchDatabaseOverview() {
+  const response = await fetch(`${API_BASE}/admin/database/overview`)
+  if (!response.ok) {
+    throw new Error(`Lỗi tải dữ liệu CSDL: ${response.status}`)
   }
 
   const sample = SAMPLE_EXHIBITS.find(
@@ -108,8 +207,3 @@ export async function fetchExhibitById(exhibitId) {
   throw new Error(`Không tìm thấy hiện vật ${exhibitId}`)
 }
 
-// Kiểm tra backend
-export async function healthCheck() {
-  const response = await fetch('/')
-  return response.json()
-}
