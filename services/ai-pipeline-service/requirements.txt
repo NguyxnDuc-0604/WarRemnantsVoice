@@ -10,3 +10,6 @@ edge-tts
 requests
 python-dotenv
 pydantic
+sqlalchemy
+psycopg2-binary
+python-dotenv

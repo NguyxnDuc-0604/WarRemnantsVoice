@@ -156,6 +156,7 @@ export async function deleteExhibit(code) {
  */
 export async function processAudio(text, languages, exhibitId = null) {
   const timestamp = Date.now()
+
   const payload = {
     task_id: `task-${timestamp}`,
     exhibit_id: exhibitId || `exhibit-${timestamp}`,
@@ -171,7 +172,9 @@ export async function processAudio(text, languages, exhibitId = null) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || `Lỗi server: ${response.status}`)
+    throw new Error(
+      errorData.detail || `Lỗi server: ${response.status}`
+    )
   }
 
   return response.json()
@@ -192,6 +195,15 @@ export async function fetchDatabaseOverview() {
   if (!response.ok) {
     throw new Error(`Lỗi tải dữ liệu CSDL: ${response.status}`)
   }
-  return response.json()
+
+  const sample = SAMPLE_EXHIBITS.find(
+    (exhibit) => exhibit.id === exhibitId
+  )
+
+  if (sample) {
+    return sample
+  }
+
+  throw new Error(`Không tìm thấy hiện vật ${exhibitId}`)
 }
 

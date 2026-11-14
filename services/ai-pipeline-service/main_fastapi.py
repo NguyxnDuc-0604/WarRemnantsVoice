@@ -43,6 +43,24 @@ async def lifespan(app: FastAPI):
         print(f"[DB-INIT-WARN] Loi khoi tao CSDL: {err}")
     yield
 
+
+# =====================================================
+# 1. CẤU HÌNH ĐƯỜNG DẪN
+# =====================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
+
+
+# =====================================================
+# 2. KHỞI TẠO FASTAPI
+# =====================================================
+
 app = FastAPI(
     title="WarRemnantsVoice - AI Pipeline, Exhibit & Admin Service",
     description="Hệ thống thuyết minh tự động đa ngôn ngữ cho Bảo tàng Chứng tích Chiến tranh",
@@ -56,7 +74,7 @@ app.add_middleware(
     allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
 
 # Thư mục chứa audio file
@@ -133,6 +151,7 @@ def format_exhibit_response(exhibit: Exhibit, db: Session, idx: int = 1) -> dict
 
 # Request Models
 class TranslationRequest(BaseModel):
+
     task_id: str
     exhibit_id: str
     original_text: str
@@ -172,6 +191,47 @@ class UpdateExhibitRequest(BaseModel):
     period: Optional[str] = None
     thumbnail_url: Optional[str] = None
     original_text: Optional[str] = None
+
+
+# =====================================================
+# 6. HÀM GHI LOG VÀO DATABASE
+# =====================================================
+
+def write_log(db, task_id, message, level="INFO"):
+
+    log = PipelineLog(
+        task_id=task_id,
+        log_level=level,
+        message=message
+    )
+
+    db.add(log)
+    db.commit()
+
+
+# =====================================================
+# 7. HÀM TẠO PROCESSING STEP
+# =====================================================
+
+def create_processing_step(db, task_id, step_name):
+
+    step = ProcessingStep(
+        task_id=task_id,
+        step_name=step_name,
+        status="processing",
+        started_at=datetime.now()
+    )
+
+    db.add(step)
+    db.commit()
+    db.refresh(step)
+
+    return step
+
+
+# =====================================================
+# 8. HEALTH CHECK
+# =====================================================
 
 @app.get("/")
 def health_check(db: Session = Depends(get_db)):
@@ -582,9 +642,72 @@ async def get_exhibit_audio(identifier: str, lang: str = Query("en"), db: Sessio
 @app.post("/api/v1/process-audio")
 async def process_translation_and_tts(payload: TranslationRequest, db: Session = Depends(get_db)):
     try:
+
+        # -------------------------------------------------
+        # KIỂM TRA DỮ LIỆU ĐẦU VÀO
+        # -------------------------------------------------
+
+        if not payload.target_languages:
+            raise HTTPException(
+                status_code=400,
+                detail="Danh sách ngôn ngữ không được để trống"
+            )
+
+        if not payload.original_text.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Nội dung hiện vật không được để trống"
+            )
+
+        # -------------------------------------------------
+        # KIỂM TRA TASK ID
+        # -------------------------------------------------
+
+        existing_task = db.query(PipelineTask).filter(
+            PipelineTask.task_id == payload.task_id
+        ).first()
+
+        if existing_task:
+
+            raise HTTPException(
+                status_code=409,
+                detail="Task ID đã tồn tại"
+            )
+
+        # -------------------------------------------------
+        # BƯỚC 1: TẠO TÁC VỤ AI
+        # -------------------------------------------------
+
+        task = PipelineTask(
+            task_id=payload.task_id,
+            exhibit_id=payload.exhibit_id,
+            original_text=payload.original_text,
+            status="processing"
+        )
+
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+
+        write_log(
+            db,
+            payload.task_id,
+            "Bắt đầu xử lý tác vụ AI"
+        )
+
         results = []
-        output_dir = os.path.join(".", "output", payload.exhibit_id)
+
+        # Tạo thư mục lưu audio theo hiện vật
+        output_dir = os.path.join(
+            OUTPUT_DIR,
+            payload.exhibit_id
+        )
+
         os.makedirs(output_dir, exist_ok=True)
+
+        # -------------------------------------------------
+        # BƯỚC 2: DỊCH THUẬT VÀ TẠO AUDIO
+        # -------------------------------------------------
 
         for lang in payload.target_languages:
             translated_text = translate_text(payload.original_text, lang)

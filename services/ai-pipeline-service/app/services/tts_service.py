@@ -1,5 +1,12 @@
+
 import edge_tts
 import os
+import asyncio
+import logging
+
+# Cấu hình logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Ánh xạ 15 ngôn ngữ với giọng đọc Neural truyền cảm của Microsoft Edge TTS (FR-12)
 VOICE_MAPPING = {
@@ -20,7 +27,12 @@ VOICE_MAPPING = {
     "id": "id-ID-ArdiNeural"
 }
 
-async def generate_audio(text: str, target_lang: str, output_path: str) -> str:
+
+async def generate_audio(
+    text: str,
+    target_lang: str,
+    output_path: str
+) -> str:
     """
     Sinh file âm thanh từ văn bản thuyết minh qua Microsoft Edge TTS Neural
     """

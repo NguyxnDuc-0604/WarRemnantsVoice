@@ -290,8 +290,12 @@ export default function QRScanPage() {
                         </span>
                       </div>
                       <AudioPlayer
-                        audioUrl={translationResult.audio_file_path}
-                        title={`${currentExhibit.name} (${selectedLang.toUpperCase()})`}
+  src={translationResult.audio_file_path}
+  language={selectedLang}
+  langLabel={
+    LANGUAGES.find((l) => l.code === selectedLang)?.nativeName ||
+    selectedLang.toUpperCase()
+  }
                       />
                     </div>
                   )}
