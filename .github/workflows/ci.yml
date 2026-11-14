@@ -35,12 +35,13 @@ jobs:
     - name: Install dependencies
       run: |
         python -m venv .venv
-        . .venv/Scripts/activate
-        pip install -r requirements.txt
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Run tests
       run: |
-        . .venv/Scripts/activate
+        source .venv/bin/activate
         pytest
 
     - name: Build Docker image
