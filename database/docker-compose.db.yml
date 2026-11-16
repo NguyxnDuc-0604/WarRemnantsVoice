@@ -1,0 +1,109 @@
+version: '3.8'
+
+services:
+  # ============================================================================
+  # POSTGRESQL 16 (Hệ Quản trị Cơ sở Dữ liệu Quan hệ)
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: warremnants_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_DB: ${POSTGRES_DB:-warremnants_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Tự động nạp toàn bộ cấu trúc bảng và dữ liệu mẫu khi khởi động lần đầu
+      - ./schema_all_in_one.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d warremnants_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - warremnants_net
+
+  # ============================================================================
+  # PGADMIN 4 (Giao diện Quản trị Cơ sở dữ liệu Web)
+  # Truy cập: http://localhost:5050 (Tài khoản: admin@baotang.vn / admin123)
+  # ============================================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: warremnants_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@baotang.vn}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - warremnants_net
+
+  # ============================================================================
+  # REDIS 7 (Bộ nhớ Đệm Cache 30s Audio Chunk - Tối ưu phát tức thì <= 2s)
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: warremnants_redis
+    restart: always
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - warremnants_net
+
+  # ============================================================================
+  # MINIO OBJECT STORAGE (Lưu trữ Audio MP3 & Ảnh Hiện vật)
+  # Console: http://localhost:9001 (minioadmin / minioadmin123)
+  # S3 API:  http://localhost:9000
+  # ============================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: warremnants_minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - warremnants_net
+
+  # ============================================================================
+  # RABBITMQ BROKER (Hàng đợi tác vụ AI bóc băng, dịch thuật, tổng hợp TTS)
+  # Management UI: http://localhost:15672 (guest / guest)
+  # AMQP Port:     5672
+  # ============================================================================
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: warremnants_rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - warremnants_net
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  rabbitmq_data:
+
+networks:
+  warremnants_net:
+    driver: bridge

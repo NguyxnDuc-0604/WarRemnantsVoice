@@ -38,3 +38,7 @@ docker-data/
 minio-data/
 postgres-data/
 *.log
+*.mp3
+*.db
+*.sqlite
+*.sqlite3

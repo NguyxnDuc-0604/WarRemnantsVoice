@@ -1,0 +1,216 @@
+/* ══ Translate Page ══════════════════════════════════════ */
+
+.translate-page {
+  padding: var(--space-8) 0 var(--space-16);
+  flex: 1;
+}
+
+.translate-page__header {
+  margin-bottom: var(--space-8);
+}
+
+/* ── Two-column layout ───────────────────────────── */
+.translate-page__layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+/* ── Input Panel (left) ──────────────────────────── */
+.translate-panel {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  position: sticky;
+  top: 72px; /* header height + space */
+}
+
+.translate-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.translate-panel__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.translate-panel__actions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* Examples */
+.examples-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.example-btn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  text-align: left;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.example-btn:hover {
+  border-color: var(--color-amber-700);
+  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+}
+
+/* KBD shortcut hint */
+.kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-family: monospace;
+  color: var(--color-text-secondary);
+}
+
+/* ── Results Panel (right) ───────────────────────── */
+.results-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 300px;
+}
+
+/* Error box */
+.error-box {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-color: rgba(239,68,68,0.3) !important;
+  background: rgba(239,68,68,0.05) !important;
+}
+
+/* Loading card */
+.loading-card {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.loading-card__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.loading-spinner-large {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  animation: pulse-amber 1.5s ease-in-out infinite;
+}
+
+.loading-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.loading-step {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Results */
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Empty state */
+.empty-state {
+  padding: var(--space-10);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 200px;
+  justify-content: center;
+}
+
+/* History */
+.history-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.history-toggle {
+  align-self: flex-start;
+  color: var(--color-text-muted);
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.history-item {
+  padding: var(--space-3);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: border-color var(--transition-fast);
+}
+
+.history-item:hover {
+  border-color: var(--color-amber-700);
+}
+
+/* ── Responsive ──────────────────────────────────── */
+@media (max-width: 900px) {
+  .translate-page__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .translate-panel {
+    position: static;
+  }
+}
+
+@media (max-width: 480px) {
+  .translate-page {
+    padding: var(--space-4) 0 var(--space-8);
+  }
+}
