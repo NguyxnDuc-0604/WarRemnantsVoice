@@ -1,62 +1,276 @@
-name: CD
+name: 🚀 CD — Deploy WarRemnantsVoice Microservices
+
+# =========================================================
+# CONTINUOUS DEPLOYMENT — War Remnants Voice (Group 3)
+# =========================================================
+# Trigger: Push lên nhánh main hoặc release tag
+# Strategy:
+#   1. Build 6 Docker images, push lên GitHub Container Registry (ghcr.io)
+#   2. SSH vào VPS, pull images mới, restart containers
+#
+# Secrets cần cấu hình trong GitHub → Settings → Secrets:
+#   SERVER_HOST      : IP hoặc domain của VPS deploy (vd: 103.1.2.3)
+#   SERVER_USER      : Username SSH trên VPS (vd: ubuntu, root)
+#   SERVER_SSH_KEY   : Private key SSH (nội dung file ~/.ssh/id_rsa)
+#   SERVER_DEPLOY_PATH: Đường dẫn thư mục project trên VPS (vd: /home/ubuntu/war-remnants-voice)
+#   DB_PASSWORD      : Password PostgreSQL production
+#   MINIO_SECRET_KEY : MinIO secret key production
+# =========================================================
 
 on:
   push:
-    branches: [ main, dev ]
-  workflow_dispatch: # allow manual trigger
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch: # Cho phép trigger thủ công từ GitHub UI
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/museum
 
 jobs:
-  deploy:
+  # ===========================================================
+  # JOB 1: Build & Push tất cả Docker images lên ghcr.io
+  # ===========================================================
+  build-and-push:
+    name: 🔨 Build & Push Docker Images
     runs-on: ubuntu-latest
-    needs: build
-    services:
-      db:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: secret
-          POSTGRES_DB: warremnants
-        ports: [ "5432:5432" ]
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    permissions:
+      contents: read
+      packages: write # Cần để push lên ghcr.io
+
+    strategy:
+      matrix:
+        include:
+          - service: gateway-service
+            image_name: museum-gateway
+            context: ./services/gateway-service
+          - service: exhibit-service
+            image_name: museum-exhibit
+            context: ./services/exhibit-service
+          - service: analytics-service
+            image_name: museum-analytics
+            context: ./services/analytics-service
+          - service: ai-pipeline-service
+            image_name: museum-ai
+            context: ./services/ai-pipeline-service
+          - service: streaming-service
+            image_name: museum-streaming
+            context: ./services/streaming-service
+          - service: frontend
+            image_name: museum-frontend
+            context: ./services/frontend
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: 📥 Checkout source code
+        uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: 🔑 Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/warremnants:${{ github.sha }}
+      # Tạo tags: latest + commit SHA (để rollback được)
+      - name: 🏷️ Extract metadata for ${{ matrix.service }}
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image_name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+            type=ref,event=tag
 
-    - name: Deploy to remote server (SSH)
-      uses: appleboy/ssh-action@v1
-      with:
-        host: ${{ secrets.SERVER_HOST }}
-        username: ${{ secrets.SERVER_USER }}
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        script: |
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/warremnants:${{ github.sha }}
-          docker stop warremnants || true
-          docker rm warremnants || true
-          docker run -d \
-            --name warremnants \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=secret \
-            -e POSTGRES_DB=warremnants \
-            -p 8000:8000 \
-            ${{ secrets.DOCKERHUB_USERNAME }}/warremnants:${{ github.sha }}
+      - name: 🐳 Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  # ===========================================================
+  # JOB 2: Deploy lên VPS qua SSH
+  # ===========================================================
+  deploy:
+    name: 🌐 Deploy to Production Server
+    runs-on: ubuntu-latest
+    needs: build-and-push # Chỉ chạy sau khi build xong
+    environment: production # Thêm approval gate nếu cần
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: 📥 Checkout source code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      # Tạo file .env production trên VPS (bảo mật, không commit vào git)
+      - name: 📝 Create production .env on server
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            cat > ${{ secrets.SERVER_DEPLOY_PATH }}/.env.production << ENV
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB=museum_db
+          EXHIBIT_DATABASE_URL=postgresql+psycopg2://postgres:${{ secrets.DB_PASSWORD }}@postgres:5432/museum_db
+          ANALYTICS_DATABASE_URL=postgresql+psycopg2://postgres:${{ secrets.DB_PASSWORD }}@postgres:5432/museum_db
+          MINIO_ROOT_USER=minioadmin
+          MINIO_ROOT_PASSWORD=${{ secrets.MINIO_SECRET_KEY }}
+          VITE_API_TARGET=http://gateway-service:8000
+          GITHUB_ACTOR=${{ github.actor }}
+          IMAGE_TAG=sha-${{ github.sha }}
+          ENV
+          EOF
+
+      # Cập nhật docker-compose.prod.yml với image tags mới
+      - name: 🚀 Deploy microservices via SSH
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'DEPLOY'
+            set -e  # Dừng ngay nếu có lỗi
+            
+            cd ${{ secrets.SERVER_DEPLOY_PATH }}
+            
+            echo "📦 Pulling latest code..."
+            git fetch origin main
+            git reset --hard origin/main
+            
+            echo "🔑 Login to GitHub Container Registry..."
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            echo "📥 Pulling new Docker images..."
+            export IMAGE_OWNER="${{ github.repository_owner }}"
+            export IMAGE_TAG="sha-$(echo ${{ github.sha }} | cut -c1-7)"
+            
+            docker pull ghcr.io/${IMAGE_OWNER}/museum-gateway:${IMAGE_TAG}
+            docker pull ghcr.io/${IMAGE_OWNER}/museum-exhibit:${IMAGE_TAG}
+            docker pull ghcr.io/${IMAGE_OWNER}/museum-analytics:${IMAGE_TAG}
+            docker pull ghcr.io/${IMAGE_OWNER}/museum-ai:${IMAGE_TAG}
+            docker pull ghcr.io/${IMAGE_OWNER}/museum-streaming:${IMAGE_TAG}
+            docker pull ghcr.io/${IMAGE_OWNER}/museum-frontend:${IMAGE_TAG}
+            
+            echo "🔄 Restarting services (zero-downtime rolling update)..."
+            # Restart từng service một, không dừng toàn bộ hệ thống
+            docker compose --env-file .env.production pull
+            
+            # Restart infrastructure services nếu cần (ít khi thay đổi)
+            # docker compose --env-file .env.production up -d postgres rabbitmq minio
+            
+            # Rolling restart các app services
+            docker compose --env-file .env.production up -d --no-deps exhibit-service
+            docker compose --env-file .env.production up -d --no-deps analytics-service
+            docker compose --env-file .env.production up -d --no-deps ai-pipeline-service
+            docker compose --env-file .env.production up -d --no-deps streaming-service
+            docker compose --env-file .env.production up -d --no-deps gateway-service
+            docker compose --env-file .env.production up -d --no-deps frontend
+            
+            echo "🧹 Cleanup old images..."
+            docker image prune -f --filter "until=24h"
+            
+            echo "✅ Deploy completed!"
+          DEPLOY
+
+      # ===========================================================
+      # Health Check sau deploy
+      # ===========================================================
+      - name: 🏥 Health Check — Verify deployment
+        run: |
+          echo "⏳ Waiting 30s for services to start..."
+          sleep 30
+
+          # Kiểm tra Gateway health endpoint
+          HEALTH_URL="http://${{ secrets.SERVER_HOST }}:8000/health"
+
+          for i in 1 2 3 4 5; do
+            echo "Attempt $i: Checking $HEALTH_URL"
+            HTTP_STATUS=$(curl -s -o /tmp/health_response.json -w "%{http_code}" "$HEALTH_URL" || echo "000")
+            
+            if [ "$HTTP_STATUS" = "200" ]; then
+              echo "✅ Gateway is UP!"
+              cat /tmp/health_response.json
+              break
+            else
+              echo "⚠️ Got HTTP $HTTP_STATUS, retrying in 15s..."
+              sleep 15
+            fi
+            
+            if [ $i -eq 5 ]; then
+              echo "❌ Health check failed after 5 attempts!"
+              exit 1
+            fi
+          done
+
+      # ===========================================================
+      # Thông báo kết quả (Slack/Discord/Email — tùy chọn)
+      # ===========================================================
+      - name: 📣 Notify deploy success
+        if: success()
+        run: |
+          echo "🎉 Deploy SUCCESSFUL!"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+          echo "By: ${{ github.actor }}"
+          # Thêm webhook Slack/Discord ở đây nếu cần:
+          # curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+          #   -H 'Content-type: application/json' \
+          #   --data '{"text":"✅ Deploy thành công: ${{ github.sha }}"}'
+
+      - name: 🚨 Notify deploy failure
+        if: failure()
+        run: |
+          echo "💥 Deploy FAILED for commit ${{ github.sha }}"
+          # Thêm alert ở đây nếu cần
+
+  # ===========================================================
+  # JOB 3: Rollback tự động nếu health check thất bại
+  # ===========================================================
+  rollback:
+    name: ⏪ Auto Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure() # Chỉ chạy nếu deploy job thất bại
+
+    steps:
+      - name: 🔑 Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: ⏪ Rollback to previous version
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'ROLLBACK'
+            cd ${{ secrets.SERVER_DEPLOY_PATH }}
+            
+            echo "⏪ Rolling back to previous commit..."
+            git log --oneline -5
+            
+            # Quay lại commit trước
+            PREVIOUS_COMMIT=$(git log --format="%H" -n 2 | tail -1)
+            git reset --hard $PREVIOUS_COMMIT
+            
+            # Restart với images cũ (dùng :latest của lần trước)
+            docker compose --env-file .env.production up -d
+            
+            echo "✅ Rollback completed to: $PREVIOUS_COMMIT"
+          ROLLBACK
+
+      - name: 🚨 Alert rollback triggered
+        run: |
+          echo "⚠️ ROLLBACK triggered for commit ${{ github.sha }}"
+          echo "System rolled back to previous stable version."

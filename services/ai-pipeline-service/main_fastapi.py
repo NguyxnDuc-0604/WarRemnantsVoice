@@ -229,6 +229,20 @@ def create_processing_step(db, task_id, step_name):
     return step
 
 
+
+def validate_translation(original_text: str, translated_text: str, target_lang: str) -> bool:
+    """Kiem tra ban dich co that su thanh cong hay khong (khong phai tra ve nguyen van tieng Viet)"""
+    if not translated_text or not translated_text.strip():
+        return False
+    # Neu ngon ngu dich khong phai tieng Viet ma van tra ve y het ban goc -> dich that bai
+    if target_lang not in ("vi", "vi-VN"):
+        similarity = len(set(translated_text.split()) & set(original_text.split()))
+        total = max(len(original_text.split()), 1)
+        if similarity / total > 0.8:  # > 80% tu giong nhau -> khong dich duoc
+            return False
+    return True
+
+
 # =====================================================
 # 8. HEALTH CHECK
 # =====================================================
@@ -397,13 +411,39 @@ def create_new_exhibit(req: CreateExhibitRequest, db: Session = Depends(get_db))
         "exhibit": formatted
     }
 
+def find_exhibit_by_identifier(db: Session, identifier: str) -> Optional[Exhibit]:
+    """Tìm hiện vật an toàn theo code hoặc ID UUID, tránh lỗi Type UUID trên PostgreSQL"""
+    if not identifier:
+        return None
+    raw_str = identifier.strip()
+    clean_id = raw_str.upper()
+
+    # 1. Tìm theo mã code chính xác (VD: UH1-BELL)
+    exhibit = db.query(Exhibit).filter(Exhibit.code == clean_id).first()
+    if exhibit:
+        return exhibit
+
+    # 2. Kiểm tra nếu là UUID hợp lệ thì mới truy vấn id
+    try:
+        val_uuid = uuid.UUID(raw_str)
+        exhibit = db.query(Exhibit).filter(Exhibit.id == str(val_uuid)).first()
+        if exhibit:
+            return exhibit
+    except (ValueError, TypeError, AttributeError):
+        pass
+
+    # 3. Tìm kiếm tương đối theo mã code
+    exhibits = db.query(Exhibit).all()
+    clean_stripped = clean_id.replace('-', '').replace('_', '')
+    for ex in exhibits:
+        if clean_stripped in ex.code.upper().replace('-', '').replace('_', ''):
+            return ex
+
+    return None
+
 @app.delete("/api/v1/admin/exhibits/{code}")
 def delete_exhibit(code: str, db: Session = Depends(get_db)):
-    clean_code = code.strip().upper()
-    exhibit = db.query(Exhibit).filter(
-        (Exhibit.code == clean_code) | (Exhibit.id == code.strip())
-    ).first()
-    
+    exhibit = find_exhibit_by_identifier(db, code)
     if not exhibit:
         raise HTTPException(status_code=404, detail="Không tìm thấy hiện vật để xóa")
     
@@ -417,10 +457,7 @@ def delete_exhibit(code: str, db: Session = Depends(get_db)):
 @app.patch("/api/v1/admin/exhibits/{code}/thumbnail")
 def update_exhibit_thumbnail(code: str, req: UpdateExhibitThumbnailRequest, db: Session = Depends(get_db)):
     """Cáº­p nháº­t nhanh URL áº£nh Ä‘áº¡i diá»‡n cho hiá»‡n váº­t"""
-    clean_code = code.strip().upper()
-    exhibit = db.query(Exhibit).filter(
-        (Exhibit.code == clean_code) | (Exhibit.id == code.strip())
-    ).first()
+    exhibit = find_exhibit_by_identifier(db, code)
     
     if not exhibit:
         raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y hiá»‡n váº­t")
@@ -441,10 +478,7 @@ def update_exhibit_thumbnail(code: str, req: UpdateExhibitThumbnailRequest, db: 
 @app.put("/api/v1/admin/exhibits/{code}")
 def update_exhibit_full(code: str, req: UpdateExhibitRequest, db: Session = Depends(get_db)):
     """Cáº­p nháº­t thÃ´ng tin chi tiáº¿t hiá»‡n váº­t vÃ  vÄƒn báº£n gá»‘c"""
-    clean_code = code.strip().upper()
-    exhibit = db.query(Exhibit).filter(
-        (Exhibit.code == clean_code) | (Exhibit.id == code.strip())
-    ).first()
+    exhibit = find_exhibit_by_identifier(db, code)
     
     if not exhibit:
         raise HTTPException(status_code=404, detail="KhÃ´ng tÃ¬m tháº¥y hiá»‡n váº­t")
@@ -499,18 +533,7 @@ def get_all_exhibits(db: Session = Depends(get_db)):
 
 @app.get("/api/v1/exhibits/{identifier}")
 def get_exhibit_by_code_or_id(identifier: str, db: Session = Depends(get_db)):
-    clean_id = identifier.strip().upper()
-    exhibit = db.query(Exhibit).filter(
-        (Exhibit.code == clean_id) | (Exhibit.id == identifier.strip())
-    ).first()
-    
-    if not exhibit:
-        exhibits = db.query(Exhibit).all()
-        for ex in exhibits:
-            if clean_id.replace('-', '') in ex.code.upper().replace('-', ''):
-                exhibit = ex
-                break
-
+    exhibit = find_exhibit_by_identifier(db, identifier)
     if not exhibit:
         raise HTTPException(status_code=404, detail=f"Không tìm thấy hiện vật với mã '{identifier}'")
 
@@ -518,18 +541,7 @@ def get_exhibit_by_code_or_id(identifier: str, db: Session = Depends(get_db)):
 
 @app.get("/api/v1/exhibits/{identifier}/audio")
 async def get_exhibit_audio(identifier: str, lang: str = Query("en"), db: Session = Depends(get_db)):
-    clean_id = identifier.strip().upper()
-    exhibit = db.query(Exhibit).filter(
-        (Exhibit.code == clean_id) | (Exhibit.id == identifier.strip())
-    ).first()
-    
-    if not exhibit:
-        exhibits = db.query(Exhibit).all()
-        for ex in exhibits:
-            if clean_id.replace('-', '') in ex.code.upper().replace('-', ''):
-                exhibit = ex
-                break
-
+    exhibit = find_exhibit_by_identifier(db, identifier)
     if not exhibit:
         raise HTTPException(status_code=404, detail=f"Hiện vật '{identifier}' không tồn tại.")
 
@@ -542,15 +554,48 @@ async def get_exhibit_audio(identifier: str, lang: str = Query("en"), db: Sessio
         return TRANSLATION_CACHE[cache_key]
 
     # Kiểm tra trong Localization và AudioMedia CSDL
-    loc = db.query(Localization).filter_by(
-        exhibit_id=exhibit.id,
-        language_code=lang,
-        content_version=exhibit.content_version
+    lang_candidates = [lang]
+    if lang.lower() in ["zh", "zh-cn"]:
+        lang_candidates = ["zh-CN", "zh", "zh-cn"]
+
+    loc = db.query(Localization).filter(
+        Localization.exhibit_id == exhibit.id,
+        Localization.language_code.in_(lang_candidates),
+        Localization.content_version == exhibit.content_version
     ).first()
+
+    # Kiểm tra xem bản dịch có bị lỗi trả về tiếng Việt gốc không
+    if loc and lang not in ["vi", "vi-vn", "vi-VN"]:
+        if loc.translated_text and original_text and (
+            loc.translated_text.strip() == original_text.strip() or
+            loc.translated_text.strip().startswith(original_text.strip()[:40])
+        ):
+            print(f"[CLEANUP] Discarding corrupt Vietnamese text in '{loc.language_code}' for {exhibit.code}")
+            db.delete(loc)
+            db.commit()
+            loc = None
     
     if loc:
         audio_rec = db.query(AudioMedia).filter_by(localization_id=loc.id).first()
-        if audio_rec and os.path.exists(audio_rec.storage_path):
+        # Kiem tra file ton tai VA khong rong (> 0 byte)
+        # Ho tro ca storage_path tuyet doi (Windows host) va file_url (Docker bind-mount)
+        def _resolve_audio_path(rec):
+            """Tra ve path dia thuc cho audio record (tuong thich ca host va Docker)"""
+            if not rec:
+                return None
+            # Uu tien file_url: /output/CODE/CODE_lang.mp3 -> ./output/CODE/CODE_lang.mp3
+            if rec.file_url:
+                rel = rec.file_url.lstrip("/")  # "output/CODE/CODE_lang.mp3"
+                local = os.path.join(".", rel)
+                if os.path.exists(local) and os.path.getsize(local) > 0:
+                    return local
+            # Fallback: storage_path
+            if rec.storage_path and os.path.exists(rec.storage_path) and os.path.getsize(rec.storage_path) > 0:
+                return rec.storage_path
+            return None
+
+        audio_disk_path = _resolve_audio_path(audio_rec)
+        if audio_disk_path:
             result_payload = {
                 "exhibit_code": exhibit.code,
                 "language": lang,
@@ -563,6 +608,11 @@ async def get_exhibit_audio(identifier: str, lang: str = Query("en"), db: Sessio
             }
             TRANSLATION_CACHE[cache_key] = result_payload
             return result_payload
+        # File rong hoac khong ton tai -> xoa AudioMedia cu de regenerate
+        if audio_rec:
+            logger.warning(f"Audio file missing/empty for {exhibit.code}/{lang}, regenerating: {audio_rec.storage_path}")
+            db.delete(audio_rec)
+            db.flush()
 
     try:
         # Dịch thuật
@@ -573,6 +623,11 @@ async def get_exhibit_audio(identifier: str, lang: str = Query("en"), db: Sessio
             translated_text = translate_text(original_text, lang)
             translated_title = exhibit.title_en if (lang == "en" and exhibit.title_en) else translate_text(exhibit.title, lang)
 
+        # Kiem tra dich thuat co thanh cong khong (tranh luu text Viet khi dich that bai)
+        if lang != "vi" and not validate_translation(original_text, translated_text, lang):
+            logger.error(f"Translation failed for {exhibit.code}/{lang} - returned original Vietnamese text")
+            raise HTTPException(status_code=503, detail=f"Dich thuat that bai cho ngon ngu '{lang}'. Vui long kiem tra ket noi internet cua Backend.")
+
         output_dir = os.path.join(".", "output", exhibit.code)
         os.makedirs(output_dir, exist_ok=True)
         
@@ -580,6 +635,11 @@ async def get_exhibit_audio(identifier: str, lang: str = Query("en"), db: Sessio
         full_disk_path = os.path.join(output_dir, audio_filename)
         
         await generate_audio(translated_text, lang, full_disk_path)
+        # Kiem tra file audio duoc tao thanh cong va co noi dung
+        if not os.path.exists(full_disk_path) or os.path.getsize(full_disk_path) == 0:
+            if os.path.exists(full_disk_path):
+                os.remove(full_disk_path)
+            raise HTTPException(status_code=503, detail=f"Sinh audio that bai cho ngon ngu '{lang}'. Vui long kiem tra ket noi internet cua Backend.")
         
         timestamps = generate_subtitle_timestamps(translated_text)
         duration_sec = timestamps[-1]["end"] if timestamps else 30.0

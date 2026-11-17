@@ -1,4 +1,4 @@
-# WarRemnantsVoice - Cloudflare Tunnel Runner with Auto-URL Extraction
+﻿# WarRemnantsVoice - Cloudflare Tunnel Runner with Auto-URL Extraction
 $Host.UI.RawUI.WindowTitle = "[WarRemnantsVoice] - Cloudflare Tunnel (Active)"
 
 Clear-Host
@@ -9,6 +9,10 @@ Write-Host "Dang ket noi may chu Cloudflare, vui long cho trong giay lat..." -Fo
 Write-Host ""
 
 $cloudflaredPath = Join-Path $PSScriptRoot "cloudflared.exe"
+if (-not (Test-Path $cloudflaredPath)) {
+    $parentPath = Split-Path $PSScriptRoot -Parent
+    $cloudflaredPath = Join-Path $parentPath "cloudflared.exe"
+}
 
 if (-not (Test-Path $cloudflaredPath)) {
     Write-Host "[LOI] Khong tim thay cloudflared.exe trong thu muc du an!" -ForegroundColor Red
