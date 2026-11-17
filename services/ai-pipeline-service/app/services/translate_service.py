@@ -63,8 +63,9 @@ def translate_text(text: str, target_lang: str) -> str:
         try:
             translated = translate_via_google_api(text, lang_for_google)
         except Exception as e:
-            print(f"[ERROR] Both translation methods failed: {e}")
-            # Nếu mất mạng hoàn toàn thì giữ nguyên text
+            print(f"[ERROR] Both translation methods failed for '{target_lang}': {e}")
+            if clean_target not in ("vi", "vi-vn"):
+                raise RuntimeError(f"Dịch thuật sang '{target_lang}' thất bại (mất kết nối mạng/Google Translate bị chặn). Vui lòng thử lại sau.")
             translated = text
 
     # Áp dụng từ điển thuật ngữ lịch sử (Glossary) sau khi dịch (FR-10, BR-02)

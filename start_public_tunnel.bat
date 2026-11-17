@@ -4,6 +4,11 @@ title [WarRemnantsVoice] - Cloudflare Public Tunnel
 
 cd /d "%~dp0"
 
+if exist "scripts\start_tunnel.ps1" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start_tunnel.ps1"
+    goto :end
+)
+
 if exist "start_tunnel.ps1" (
     powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start_tunnel.ps1"
     goto :end

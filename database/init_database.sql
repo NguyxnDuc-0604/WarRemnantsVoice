@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS exhibit (
     title_en VARCHAR(255),
     room_id VARCHAR(50) NOT NULL,
     zone VARCHAR(100) DEFAULT 'Khu trưng bày',
+    period VARCHAR(100),
     latitude DECIMAL(10, 8),
     longitude DECIMAL(11, 8),
     radius INT DEFAULT 15,
@@ -309,3 +310,212 @@ VALUES (
     'Chiến dịch Hồ Chí Minh diễn ra từ ngày 26 đến 30 tháng 4 năm 1975 là chiến dịch quyết chiến chiến lược lớn nhất trong lịch sử dân tộc. Bằng 5 cánh quân tiến công thần tốc, quân và dân ta đã đập tan bộ máy chiến tranh đầu não, giải phóng Sài Gòn và non sông thu về một mối.',
     1
 ) ON CONFLICT DO NOTHING;
+
+-- Hiện vật 6: Máy bay cường kích A-37 Dragonfly
+INSERT INTO exhibit (id, code, title, title_en, room_id, zone, latitude, longitude, radius, thumbnail_url, content_version, is_published, is_active)
+VALUES (
+    'b0000000-0000-0000-0000-000000000006',
+    'A37-DRAGONFLY',
+    'Máy bay cường kích A-37 Dragonfly',
+    'Cessna A-37 Dragonfly Attack Aircraft',
+    'OUTDOOR',
+    'Khu trưng bày không quân ngoài trời',
+    10.77950000,
+    106.69230000,
+    15,
+    'https://images.unsplash.com/photo-1519074069444-1ba4ea16e6f1?auto=format&fit=crop&w=800&q=80',
+    1,
+    TRUE,
+    TRUE
+) ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO content_source (exhibit_id, original_text, content_version)
+VALUES (
+    'b0000000-0000-0000-0000-000000000006',
+    'Máy bay cường kích hạng nhẹ A-37 Dragonfly được chế tạo cho các chiến dịch yểm trợ mặt đất tầm gần. Đặc biệt, chiều ngày 28/4/1975, Phi đội Quyết Thắng của Không quân Nhân dân Việt Nam gồm 5 chiếc A-37 thu được của địch đã cất cánh từ sân bay Thành Sơn (Phan Rang) bất ngờ tập kích sân bay Tân Sơn Nhất, phá huỷ nhiều máy bay địch và đẩy nhanh sự sụp đổ của chính quyền Sài Gòn.',
+    1
+) ON CONFLICT DO NOTHING;
+
+-- Hiện vật 7: Máy chém thời kỳ chiến tranh
+INSERT INTO exhibit (id, code, title, title_en, room_id, zone, latitude, longitude, radius, thumbnail_url, content_version, is_published, is_active)
+VALUES (
+    'b0000000-0000-0000-0000-000000000007',
+    'GUILLOTINE-CONDAO',
+    'Máy chém thời kỳ chiến tranh',
+    'Historical Guillotine of the War Era',
+    'ROOM-01',
+    'Khu chứng tích nhà tù thực dân',
+    NULL,
+    NULL,
+    10,
+    'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=800&q=80',
+    1,
+    TRUE,
+    TRUE
+) ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO content_source (exhibit_id, original_text, content_version)
+VALUES (
+    'b0000000-0000-0000-0000-000000000007',
+    'Máy chém do chính quyền thực dân Pháp đưa sang Việt Nam vào đầu thế kỷ XX và được chính quyền Ngô Đình Diệm tiếp tục sử dụng theo Luật 10/59 để đàn áp khốc liệt phong trào cách mạng miền Nam. Chiếc máy chém cao hơn 4 mét với lưỡi dao thép nặng gần 50 kg là minh chứng thép cho sự tàn bạo của chế độ cai trị lúc bấy giờ.',
+    1
+) ON CONFLICT DO NOTHING;
+
+-- Hiện vật 8: Bom phát quang BLU-82
+INSERT INTO exhibit (id, code, title, title_en, room_id, zone, latitude, longitude, radius, thumbnail_url, content_version, is_published, is_active)
+VALUES (
+    'b0000000-0000-0000-0000-000000000008',
+    'BLU82-BOMB',
+    'Vỏ bom phát quang khổng lồ BLU-82 Daisy Cutter',
+    'BLU-82 Daisy Cutter High-Explosive Bomb Casing',
+    'OUTDOOR',
+    'Sân trưng bày bom đạn ngoài trời',
+    10.77910000,
+    106.69270000,
+    15,
+    'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80',
+    1,
+    TRUE,
+    TRUE
+) ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO content_source (exhibit_id, original_text, content_version)
+VALUES (
+    'b0000000-0000-0000-0000-000000000008',
+    'Bom BLU-82, có biệt danh là Daisy Cutter hay bom phát quang, có trọng lượng lên tới 6.800 kg (15.000 pound). Quả bom được thả từ máy bay vận tải C-130 nhằm tạo ra sức ép huỷ diệt trên diện rộng và dọn sạch các bãi đáp trực thăng giữa rừng rậm nhiệt đới trong chiến tranh Việt Nam.',
+    1
+) ON CONFLICT DO NOTHING;
+
+-- ====================================================================
+-- 4. TOÀN BỘ 13 NGÔN NGỮ VÀ FILE AUDIO CHO UH1-BELL
+-- ====================================================================
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'en', 'UH-1 Iroquois ''Huey'' Helicopter', 'The UH-1 Iroquois helicopter, commonly known as the ''Huey'', is an aviation icon of the U.S. military during the Vietnam War. Used from 1962 to 1975 for tactical troop transport, medical evacuation, and close air support. The aircraft displayed here is one of the historic remnants documenting fierce sweeps across the southern battlefields.', '[{"id": 0, "start": 0.0, "end": 6.05, "text": "The UH-1 Iroquois helicopter, commonly known as the ''Huey'', is an aviation icon of the U.S."}, {"id": 1, "start": 6.05, "end": 8.18, "text": "military during the Vietnam War."}, {"id": 2, "start": 8.18, "end": 14.49, "text": "Used from 1962 to 1975 for tactical troop transport, medical evacuation, and close air support."}, {"id": 3, "start": 14.49, "end": 22.4, "text": "The aircraft displayed here is one of the historic remnants documenting fierce sweeps across the southern battlefields."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_en.mp3', './output/UH1-BELL/UH1-BELL_en.mp3', 22.4, 128, 'en-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'en'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'fr', 'Hélicoptère UH-1 Iroquois ''Huey''', 'L''hélicoptère UH-1 Iroquois, communément appelé ''Huey'', est une icône de l''aviation militaire américaine pendant la guerre du Vietnam. Utilisé de 1962 à 1975 pour le transport tactique de troupes, les évacuations sanitaires et l''appui aérien. L''appareil exposé ici témoigne des violentes opérations militaires menées dans le Sud.', '[{"id": 0, "start": 0.0, "end": 8.36, "text": "L''hélicoptère UH-1 Iroquois, communément appelé ''Huey'', est une icône de l''aviation militaire américaine pendant la guerre du Vietnam."}, {"id": 1, "start": 8.36, "end": 15.04, "text": "Utilisé de 1962 à 1975 pour le transport tactique de troupes, les évacuations sanitaires et l''appui aérien."}, {"id": 2, "start": 15.04, "end": 20.41, "text": "L''appareil exposé ici témoigne des violentes opérations militaires menées dans le Sud."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_fr.mp3', './output/UH1-BELL/UH1-BELL_fr.mp3', 20.4, 128, 'fr-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'fr'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'ja', 'UH-1 イロコイ ''ヒューイ'' ヘリコプター', 'UH-1イロコイヘリコプター（通称「ヒューイ」）は、ベトナム戦争における米軍航空戦力の象徴です。1962年から1975年まで戦術的な兵員輸送、救護、火力支援に投入されました。ここに展示されている機体は、南部戦線における激戦の歴史を物語る貴重な証拠です。', '[{"id": 0, "start": 0.0, "end": 24.6, "text": "UH-1イロコイヘリコプター（通称「ヒューイ」）は、ベトナム戦争における米軍航空戦力の象徴です。1962年から1975年まで戦術的な兵員輸送、救護、火力支援に投入されました。ここに展示されている機体は、南部戦線における激戦の歴史を物語る貴重な証拠です。"}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_ja.mp3', './output/UH1-BELL/UH1-BELL_ja.mp3', 24.6, 128, 'ja-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'ja'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'ko', 'UH-1 이로쿼이 ''휴이'' 헬리콥터', 'UH-1 이로쿼이(Iroquois) 헬리콥터는 일명 ''휴이(Huey)''로 널리 알려진 베트남 전쟁 당시 미군의 상징적인 항공기입니다. 1962년부터 1975년까지 전술 병력 수송, 의무 후송, 화력 지원 임무에 투입되었습니다. 이곳에 전시된 기체는 치열했던 남부 전장의 역사를 증언하는 중요한 유물입니다.', '[{"id": 0, "start": 0.0, "end": 10.97, "text": "UH-1 이로쿼이(Iroquois) 헬리콥터는 일명 ''휴이(Huey)''로 널리 알려진 베트남 전쟁 당시 미군의 상징적인 항공기입니다."}, {"id": 1, "start": 10.97, "end": 18.53, "text": "1962년부터 1975년까지 전술 병력 수송, 의무 후송, 화력 지원 임무에 투입되었습니다."}, {"id": 2, "start": 18.53, "end": 24.9, "text": "이곳에 전시된 기체는 치열했던 남부 전장의 역사를 증언하는 중요한 유물입니다."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_ko.mp3', './output/UH1-BELL/UH1-BELL_ko.mp3', 24.9, 128, 'ko-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'ko'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'es', 'Helicóptero UH-1 Iroquois ''Huey''', 'El helicóptero UH-1 Iroquois, comúnmente apodado ''Huey'', es un emblema de la aviación del ejército estadounidense durante la Guerra de Vietnam. Utilizado entre 1962 y 1975 para el transporte táctico de tropas, evacuación médica y apoyo aéreo. El ejemplar exhibido es testimonio de los duros combates en el sur.', '[{"id": 0, "start": 0.0, "end": 11.05, "text": "El helicóptero UH-1 Iroquois, comúnmente apodado ''Huey'', es un emblema de la aviación del ejército estadounidense durante la Guerra de Vietnam."}, {"id": 1, "start": 11.05, "end": 18.62, "text": "Utilizado entre 1962 y 1975 para el transporte táctico de tropas, evacuación médica y apoyo aéreo."}, {"id": 2, "start": 18.62, "end": 23.8, "text": "El ejemplar exhibido es testimonio de los duros combates en el sur."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_es.mp3', './output/UH1-BELL/UH1-BELL_es.mp3', 23.8, 128, 'es-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'es'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'de', 'UH-1 Iroquois ''Huey'' Hubschrauber', 'Der Hubschrauber UH-1 Iroquois, allgemein als ''Huey'' bekannt, ist das bekannteste Luftfahrzeugsymbol der US-Streitkräfte im Vietnamkrieg. Eingesetzt von 1962 bis 1975 für taktische Truppentransporte, Verwundetentransporte und Luftnahunterstützung. Die hier ausgestellte Maschine ist ein historisches Zeugnis jener Kämpfe.', '[{"id": 0, "start": 0.0, "end": 10.39, "text": "Der Hubschrauber UH-1 Iroquois, allgemein als ''Huey'' bekannt, ist das bekannteste Luftfahrzeugsymbol der US-Streitkräfte im Vietnamkrieg."}, {"id": 1, "start": 10.39, "end": 18.66, "text": "Eingesetzt von 1962 bis 1975 für taktische Truppentransporte, Verwundetentransporte und Luftnahunterstützung."}, {"id": 2, "start": 18.66, "end": 24.2, "text": "Die hier ausgestellte Maschine ist ein historisches Zeugnis jener Kämpfe."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_de.mp3', './output/UH1-BELL/UH1-BELL_de.mp3', 24.2, 128, 'de-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'de'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'ru', 'Вертолёт UH-1 Iroquois ''Хьюи''', 'Вертолёт UH-1 Iroquois, широко известный как ''Хьюи'' (Huey), стал символом военной авиации США во время войны во Вьетнаме. Использовался с 1962 по 1975 год для тактической переброски десанта, медицинской эвакуации и огневой поддержки. Представленный здесь борт — одно из свидетельств ожесточённых боёв на юге страны.', '[{"id": 0, "start": 0.0, "end": 9.59, "text": "Вертолёт UH-1 Iroquois, широко известный как ''Хьюи'' (Huey), стал символом военной авиации США во время войны во Вьетнаме."}, {"id": 1, "start": 9.59, "end": 18.38, "text": "Использовался с 1962 по 1975 год для тактической переброски десанта, медицинской эвакуации и огневой поддержки."}, {"id": 2, "start": 18.38, "end": 24.8, "text": "Представленный здесь борт — одно из свидетельств ожесточённых боёв на юге страны."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_ru.mp3', './output/UH1-BELL/UH1-BELL_ru.mp3', 24.8, 128, 'ru-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'ru'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'zh-CN', 'UH-1“易洛魁”休伊直升机', 'UH-1“易洛魁”直升机，通常被称为“休伊”（Huey），是越南战争期间美军空中力量的标志。它在1962年至1975年间服役，主要执行战术运兵、战场医疗救援和空中火力支援任务。此处展出的这架直升机是记录南部战场激烈扫荡的历史见证。', '[{"id": 0, "start": 0.0, "end": 19.2, "text": "UH-1“易洛魁”直升机，通常被称为“休伊”（Huey），是越南战争期间美军空中力量的标志。它在1962年至1975年间服役，主要执行战术运兵、战场医疗救援和空中火力支援任务。此处展出的这架直升机是记录南部战场激烈扫荡的历史见证。"}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_zh-CN.mp3', './output/UH1-BELL/UH1-BELL_zh-CN.mp3', 19.2, 128, 'zh-CN-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'zh-CN'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'it', 'Elicottero UH-1 Iroquois ''Huey''', 'L''elicottero UH-1 Iroquois, comunemente noto come ''Huey'', è un''icona dell''aviazione militare statunitense durante la guerra del Vietnam. Utilizzato dal 1962 al 1975 per il trasporto táctico di truppe, evacuazione medica e supporto aereo ravvicinato. L''esemplare esposto qui è una testimonianza storica delle feroci operazioni militari condotte nel Sud.', '[{"id": 0, "start": 0.0, "end": 10.45, "text": "L''elicottero UH-1 Iroquois, comunemente noto come ''Huey'', è un''icona dell''aviazione militare statunitense durante la guerra del Vietnam."}, {"id": 1, "start": 10.45, "end": 19.06, "text": "Utilizzato dal 1962 al 1975 per il trasporto táctico di truppe, evacuazione medica e supporto aereo ravvicinato."}, {"id": 2, "start": 19.06, "end": 26.9, "text": "L''esemplare esposto qui è una testimonianza storica delle feroci operazioni militari condotte nel Sud."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_it.mp3', './output/UH1-BELL/UH1-BELL_it.mp3', 26.9, 128, 'it-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'it'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'vi', 'Máy bay trực thăng UH-1 Iroquois ''Huey''', 'Trực thăng UH-1 Iroquois, thường được gọi là ''Huey'', là biểu tượng không quân của quân đội Mỹ trong Chiến tranh Việt Nam. Được sử dụng từ năm 1962 đến 1975 với các nhiệm vụ đổ quân chiến thuật, cứu thương và yểm trợ hoả lực. Chiếc máy bay trưng bày tại đây là một trong những chứng tích ghi lại các cuộc càn quét khốc liệt trên chiến trường miền Nam.', '[{"id": 0, "start": 0.0, "end": 7.37, "text": "Trực thăng UH-1 Iroquois, thường được gọi là ''Huey'', là biểu tượng không quân của quân đội Mỹ trong Chiến tranh Việt Nam."}, {"id": 1, "start": 7.37, "end": 13.58, "text": "Được sử dụng từ năm 1962 đến 1975 với các nhiệm vụ đổ quân chiến thuật, cứu thương và yểm trợ hoả lực."}, {"id": 2, "start": 13.58, "end": 21.19, "text": "Chiếc máy bay trưng bày tại đây là một trong những chứng tích ghi lại các cuộc càn quét khốc liệt trên chiến trường miền Nam."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_vi.mp3', './output/UH1-BELL/UH1-BELL_vi.mp3', 21.2, 128, 'vi-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'vi'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'th', 'เฮลิคอปเตอร์ UH-1 Iroquois ''Huey''', 'เฮลิคอปเตอร์ UH-1 อิโรควอยส์ หรือที่รู้จักกันทั่วไปในชื่อ ''ฮิวอี้'' (Huey) เป็นสัญลักษณ์ของกองทัพอากาศสหรัฐฯ ในช่วงสงครามเวียดนาม ประจำการตั้งแต่ปี 1962 ถึง 1975 ในภารกิจส่งกำลังพลทางยุทธวิธี ลำเลียงผู้บาดเจ็บ และสนับสนุนการยิงทางอากาศ เครื่องบินที่จัดแสดงที่นี่เป็นหนึ่งในหลักฐานทางประวัติศาสตร์ของสมรภูมิอันดุเดือดในภาคใต้', '[{"id": 0, "start": 0.0, "end": 24.0, "text": "เฮลิคอปเตอร์ UH-1 อิโรควอยส์ หรือที่รู้จักกันทั่วไปในชื่อ ''ฮิวอี้'' (Huey) เป็นสัญลักษณ์ของกองทัพอากาศสหรัฐฯ ในช่วงสงครามเวียดนาม ประจำการตั้งแต่ปี 1962 ถึง 1975 ในภารกิจส่งกำลังพลทางยุทธวิธี ลำเลียงผู้บาดเจ็บ และสนับสนุนการยิงทางอากาศ เครื่องบินที่จัดแสดงที่นี่เป็นหนึ่งในหลักฐานทางประวัติศาสตร์ของสมรภูมิอันดุเดือดในภาคใต้"}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_th.mp3', './output/UH1-BELL/UH1-BELL_th.mp3', 24.0, 128, 'th-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'th'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'ar', 'مروحية UH-1 إيروكواس ''هوي''', 'تعتبر المروحية UH-1 إيروكواس، المعروفة باسم ''هوي'' (Huey)، أيقونة الطيران العسكري الأمريكي خلال حرب فيتنام. تم استخدامها من عام 1962 إلى عام 1975 لمهام النقل التكتيكي للقوات والإخلاء الطبي والدعم الجوي القريب. تعد الطائرة المعروضة هنا إحدى الشواهد التاريخية التي توثق العمليات العسكرية الضارية في جنوب فيتنام.', '[{"id": 0, "start": 0.0, "end": 7.38, "text": "تعتبر المروحية UH-1 إيروكواس، المعروفة باسم ''هوي'' (Huey)، أيقونة الطيران العسكري الأمريكي خلال حرب فيتنام."}, {"id": 1, "start": 7.38, "end": 14.41, "text": "تم استخدامها من عام 1962 إلى عام 1975 لمهام النقل التكتيكي للقوات والإخلاء الطبي والدعم الجوي القريب."}, {"id": 2, "start": 14.41, "end": 21.3, "text": "تعد الطائرة المعروضة هنا إحدى الشواهد التاريخية التي توثق العمليات العسكرية الضارية في جنوب فيتنام."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_ar.mp3', './output/UH1-BELL/UH1-BELL_ar.mp3', 21.3, 128, 'ar-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'ar'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);
+
+INSERT INTO localization (id, exhibit_id, language_code, translated_title, translated_text, timestamps_json, content_version, is_reviewed)
+VALUES (gen_random_uuid(), 'b0000000-0000-0000-0000-000000000001', 'pt', 'Helicóptero UH-1 Iroquois ''Huey''', 'O helicóptero UH-1 Iroquois, comumente conhecido como ''Huey'', é um ícone da aviação militar dos EUA durante a Guerra do Vietnã. Utilizado de 1962 a 1975 para transporte tático de tropas, evacuação médica e apoio aéreo aproximado. A aeronave aqui exposta é um dos testemunhos históricos das intensas operações militares no sul do país.', '[{"id": 0, "start": 0.0, "end": 9.75, "text": "O helicóptero UH-1 Iroquois, comumente conhecido como ''Huey'', é um ícone da aviação militar dos EUA durante a Guerra do Vietnã."}, {"id": 1, "start": 9.75, "end": 17.51, "text": "Utilizado de 1962 a 1975 para transporte tático de tropas, evacuação médica e apoio aéreo aproximado."}, {"id": 2, "start": 17.51, "end": 25.5, "text": "A aeronave aqui exposta é um dos testemunhos históricos das intensas operações militares no sul do país."}]'::jsonb, 1, TRUE)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO audio_media (id, localization_id, file_url, storage_path, duration_seconds, bitrate_kbps, voice_code, status)
+SELECT gen_random_uuid(), l.id, '/output/UH1-BELL/UH1-BELL_pt.mp3', './output/UH1-BELL/UH1-BELL_pt.mp3', 25.5, 128, 'pt-Neural', 'ready'
+FROM localization l
+WHERE l.exhibit_id = 'b0000000-0000-0000-0000-000000000001' AND l.language_code = 'pt'
+AND NOT EXISTS (SELECT 1 FROM audio_media am WHERE am.localization_id = l.id);

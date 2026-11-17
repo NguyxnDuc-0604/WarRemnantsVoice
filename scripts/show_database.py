@@ -5,10 +5,12 @@ import sqlite3
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-# Tìm file db
+# Tìm file db (hỗ trợ chạy từ root hoặc từ thư mục scripts/)
 db_paths = [
     os.path.join(os.path.dirname(__file__), "war_remnants_museum.db"),
-    os.path.join(os.path.dirname(__file__), "services", "ai-pipeline-service", "war_remnants_museum.db")
+    os.path.join(os.path.dirname(__file__), "..", "war_remnants_museum.db"),
+    os.path.join(os.path.dirname(__file__), "services", "ai-pipeline-service", "war_remnants_museum.db"),
+    os.path.join(os.path.dirname(__file__), "..", "services", "ai-pipeline-service", "war_remnants_museum.db")
 ]
 
 db_path = None
